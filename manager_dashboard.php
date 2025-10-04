@@ -2,145 +2,205 @@
 session_start();
 require 'db.php';
 
-// Check login & role
+// Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit;
+  header("Location: index.php");
+  exit;
 }
+
+$user_id = $_SESSION['user_id'];
+
+// Fetch manager info
 $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([$user_id]);
 $user = $stmt->fetch();
 
-if (!$user || $user['role'] !== 'manager') {
-    echo "Access denied.";
-    exit;
+// Role check (manager only)
+if ($user['role'] !== 'manager') {
+  echo "<script>alert('Access denied!'); window.location='index.php';</script>";
+  exit;
 }
-
-// Overview
-$totalStaff = $pdo->query("SELECT COUNT(*) FROM users WHERE role='staff'")->fetchColumn();
-$totalClients = $pdo->query("SELECT COUNT(*) FROM users WHERE role='client'")->fetchColumn();
-$activeLoans = $pdo->query("SELECT COUNT(*) FROM loans WHERE status='ongoing'")->fetchColumn();
-
-$sql = "
-SELECT u.full_name AS name,
-       COUNT(DISTINCT m.id) AS clients,
-       COUNT(DISTINCT l.id) AS loans,
-       COALESCE(ROUND(SUM(CASE WHEN p.amount IS NOT NULL THEN 1 ELSE 0 END)/NULLIF(COUNT(l.id),0)*100,0),0) AS rate
-FROM users u
-LEFT JOIN members m ON m.created_by = u.id
-LEFT JOIN loans l ON l.member_id = m.id
-LEFT JOIN payments p ON p.loan_id = l.id
-WHERE u.role='staff'
-GROUP BY u.id
-";
-$staffPerformance = $pdo->query($sql)->fetchAll();
-
-
-// New clients this month
-$newClients = $pdo->query("SELECT COUNT(*) FROM members WHERE MONTH(created_at)=MONTH(CURDATE()) AND YEAR(created_at)=YEAR(CURDATE())")->fetchColumn();
-
-// Loan trend (6 months)
-$loanTrend = $pdo->query("
-SELECT DATE_FORMAT(disbursed_date, '%b') AS month, SUM(amount) AS total
-FROM loans
-WHERE disbursed_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-GROUP BY YEAR(disbursed_date), MONTH(disbursed_date)
-ORDER BY MIN(disbursed_date)
-")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Manager Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Inter', sans-serif; background:#f4f6f9; }
-    .sidebar { width:220px; height:100vh; background:#004D99; color:#fff; position:fixed; padding:20px; }
-    .sidebar a { color:#fff; display:block; margin:12px 0; text-decoration:none; }
-    .sidebar a:hover { text-decoration:underline; }
-    .main { margin-left:240px; padding:20px; }
-    .card { border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-bottom:20px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+    body { display: flex; background: #f8fafc; color: #1e293b; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 230px;
+      background: #0f172a;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+      position: fixed;
+    }
+    .sidebar h2 {
+      font-size: 20px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .sidebar a {
+      display: block;
+      color: #e2e8f0;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: 0.3s;
+    }
+    .sidebar a:hover {
+      background: #1e293b;
+      color: #fff;
+    }
+
+    /* Main */
+    .main {
+      flex: 1;
+      margin-left: 230px;
+      padding: 30px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+    }
+    header h1 {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .profile {
+      background: #2563eb;
+      color: white;
+      padding: 8px 15px;
+      border-radius: 6px;
+    }
+
+    .card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .card h3 {
+      margin-bottom: 15px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table th, table td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    table th {
+      background: #f1f5f9;
+    }
   </style>
 </head>
 <body>
-  <div class="sidebar">
-    <h2>Microfinance Co.</h2>
-    <a href="manager_dashboard.php">📊 Dashboard</a>
-    <a href="manage_staff.php">👨‍💼 Staff</a>
-    <a href="manage_clients.php">👥 Clients</a>
-    <a href="manage_loans.php">💰 Loans</a>
-    <a href="reports.php">📑 Reports</a>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h2>Manager Panel</h2>
+    <a href="manager_dashboard.php">🏠 Dashboard</a>
+    <a href="staff_performance.php">👥 Staff Performance</a>
+    <a href="loan_overview.php">💼 Loans Overview</a>
+    <a href="generate_reports.php">📊 Reports</a>
+    <a href="notifications.php">🔔 Notifications</a>
     <a href="index.php?logout=1">🚪 Logout</a>
-  </div>
+  </aside>
 
-  <div class="main">
-    <h2>Welcome, <?= htmlspecialchars($user['full_name']) ?> (Manager)</h2>
+  <!-- Main -->
+  <main class="main">
+    <header>
+      <h1>Welcome, <?= htmlspecialchars($user['full_name']) ?> (Manager)</h1>
+      <div class="profile">Logged in</div>
+    </header>
 
-    <!-- Overview -->
-    <div class="row">
-      <div class="col-md-4"><div class="card p-3 text-center"><h6>Total Staff</h6><h3><?= $totalStaff ?></h3></div></div>
-      <div class="col-md-4"><div class="card p-3 text-center"><h6>Total Clients</h6><h3><?= $totalClients ?></h3></div></div>
-      <div class="col-md-4"><div class="card p-3 text-center"><h6>Active Loans</h6><h3><?= $activeLoans ?></h3></div></div>
+    <!-- System Overview -->
+    <div class="card">
+      <h3>📈 Branch Overview</h3>
+      <table>
+        <tr><th>Category</th><th>Count</th></tr>
+        <tr><td>Total Staff</td><td><?= $pdo->query("SELECT COUNT(*) FROM users WHERE role='staff'")->fetchColumn(); ?></td></tr>
+        <tr><td>Total Clients</td><td><?= $pdo->query("SELECT COUNT(*) FROM users WHERE role='client'")->fetchColumn(); ?></td></tr>
+        <tr><td>Total Loans</td><td><?= $pdo->query("SELECT COUNT(*) FROM loans")->fetchColumn(); ?></td></tr>
+        <tr><td>Total Payments</td><td><?= $pdo->query("SELECT COUNT(*) FROM payments")->fetchColumn(); ?></td></tr>
+      </table>
     </div>
 
-    <!-- Staff Performance Chart -->
-    <div class="card p-3">
-      <h4>Staff Performance</h4>
-      <canvas id="staffChart" height="100"></canvas>
+    <!-- Staff Performance -->
+    <div class="card">
+      <h3>👥 Staff Performance Summary</h3>
+      <table>
+        <tr><th>Staff Name</th><th>Payments Collected</th><th>Last Activity</th></tr>
+        <?php
+        $staffPerf = $pdo->query("
+          SELECT u.full_name, 
+                 COUNT(p.id) AS total_collections, 
+                 MAX(p.created_at) AS last_activity
+          FROM users u
+          LEFT JOIN payments p ON p.collected_by = u.id
+          WHERE u.role = 'staff'
+          GROUP BY u.id
+          ORDER BY total_collections DESC
+        ")->fetchAll();
+
+        if ($staffPerf) {
+          foreach ($staffPerf as $s) {
+            echo "<tr>
+                    <td>{$s['full_name']}</td>
+                    <td>{$s['total_collections']}</td>
+                    <td>{$s['last_activity']}</td>
+                  </tr>";
+          }
+        } else {
+          echo "<tr><td colspan='3'>No staff performance data available.</td></tr>";
+        }
+        ?>
+      </table>
     </div>
 
-    <!-- Loan Analytics -->
-    <div class="row">
-      <div class="col-md-6">
-        <div class="card p-3 text-center">
-          <h5>New Clients This Month</h5>
-          <h3><?= $newClients ?></h3>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card p-3">
-          <h5>Loan Disbursement Trend (6 months)</h5>
-          <canvas id="loanChart" height="100"></canvas>
-        </div>
-      </div>
+    <!-- Recent Activity -->
+    <div class="card">
+      <h3>🧾 Recent Activity</h3>
+      <table>
+        <tr><th>Date</th><th>Action</th><th>User</th></tr>
+        <?php
+        $logs = $pdo->query("
+          SELECT a.created_at, a.action, u.full_name 
+          FROM audit_logs a 
+          LEFT JOIN users u ON a.user_id = u.id 
+          ORDER BY a.created_at DESC 
+          LIMIT 5
+        ")->fetchAll();
+
+        if ($logs) {
+          foreach ($logs as $log) {
+            echo "<tr>
+                    <td>{$log['created_at']}</td>
+                    <td>{$log['action']}</td>
+                    <td>{$log['full_name']}</td>
+                  </tr>";
+          }
+        } else {
+          echo "<tr><td colspan='3'>No activity logs found.</td></tr>";
+        }
+        ?>
+      </table>
     </div>
-  </div>
+  </main>
 
-<script>
-  // Staff Performance Bar Chart
-  const staffData = {
-    labels: <?= json_encode(array_column($staffPerformance, 'name')) ?>,
-    datasets: [{
-      label: 'Repayment Rate %',
-      data: <?= json_encode(array_column($staffPerformance, 'rate')) ?>,
-      backgroundColor: '#4CAF50'
-    }]
-  };
-  new Chart(document.getElementById('staffChart'), {
-    type: 'bar',
-    data: staffData,
-    options: { scales: { y: { beginAtZero:true, max:100 } } }
-  });
-
-  // Loan Trend Line Chart
-  const loanData = {
-    labels: <?= json_encode(array_column($loanTrend, 'month')) ?>,
-    datasets: [{
-      label: 'Loan Amount',
-      data: <?= json_encode(array_column($loanTrend, 'total')) ?>,
-      borderColor: '#004D99',
-      backgroundColor: 'rgba(0,77,153,0.2)',
-      tension: 0.3,
-      fill: true
-    }]
-  };
-  new Chart(document.getElementById('loanChart'), {
-    type: 'line',
-    data: loanData,
-    options: { scales: { y: { beginAtZero:true } } }
-  });
-</script>
 </body>
 </html>

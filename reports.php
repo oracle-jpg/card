@@ -32,5 +32,5 @@ $recentPayments = $pdo->query("SELECT p.*, m.name AS member_name, u.full_name AS
     <?php endforeach; ?>
   </table>
 
-  <p><a href="dashboard.php">Back</a></p>
+  <p><a href="admin_dashboard.php">Back</a></p>
 </body></html>

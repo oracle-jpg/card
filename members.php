@@ -41,5 +41,5 @@ $members = $pdo->query("SELECT * FROM members ORDER BY created_at DESC")->fetchA
       </tr>
     <?php endforeach; ?>    
   </table>
-  <p><a href="staff_dashboard.php">Back</a></p>
+  <p><a href="admin_dashboard.php">Back</a></p>
 </body></html>
