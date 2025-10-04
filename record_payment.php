@@ -40,5 +40,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <label>Date<br><input type="date" name="payment_date" value="<?=date('Y-m-d')?>"></label><br><br>
     <button>Save Payment</button>
   </form>
-  <p><a href="dashboard.php">Back</a></p>
+  <p><a href="staff_dashboard.php">Back</a></p>
 </body></html>

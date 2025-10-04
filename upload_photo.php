@@ -53,5 +53,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['photo'])) {
     <label>Submitted date<br><input type="date" name="submitted_date" value="<?=date('Y-m-d')?>"></label><br><br>
     <button>Upload</button>
   </form>
-  <p><a href="dashboard.php">Back</a></p>
+  <p><a href="client_dashboard.php">Back</a></p>
 </body></html>
