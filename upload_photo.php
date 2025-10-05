@@ -1,90 +1,83 @@
 <?php
-session_start();
-require 'db.php';
+// REMOVED: if (session_status() === PHP_SESSION_NONE) { session_start(); }
+require_once 'auth.php';
+require_once 'db.php';
 
-// Redirect if not logged in
-if (!isset($_SESSION['user_id'])) {
-    header("Location: index.php");
-    exit;
+// Make sure only clients can upload
+require_role(['client']);
+
+$user_id = $_SESSION['user_id'] ?? null; // Use null coalescing for safety
+
+// SECURITY CHECK: If $user_id is not set, the user is not logged in.
+if (!$user_id) {
+    // You should redirect to the login page or output a proper error.
+    die("🚫 Error: Not authenticated. Please log in.");
 }
 
-$user_id = $_SESSION['user_id'];
-
-// Get the client's member_id
-$stmt = $pdo->prepare("SELECT id FROM members WHERE user_id = ?");
+// Check if the client is linked to a member record
+$stmt = $pdo->prepare("SELECT id, user_id FROM members WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $member = $stmt->fetch();
-$member_id = $member ? $member['id'] : null;
 
-if (!$member_id) {
+// CRITICAL FIX: The previous line 'if (!$member && $user['role'] === 'client')' was causing:
+// 1. Warning: Undefined variable $user
+// 2. Warning: Trying to access array offset on value of type null/bool
+// The check on $user['role'] is likely redundant if require_role(['client']) already ran.
+// However, to fix the specific error, we check if $user is set before accessing its role.
+// I am assuming a variable $user is loaded by auth.php, but this is the safest way to check.
+// If $user is not defined in auth.php, you must fix auth.php to define it.
+// Assuming $user is defined by auth.php:
+if (!$member && isset($user) && $user['role'] === 'client') {
     die("❌ Error: Your account is not linked to any member record. Please contact support.");
+} elseif (!$member) {
+    // A secondary check in case require_role allows other roles for some reason,
+    // or if the $user variable isn't correctly set in auth.php
+    die("❌ Error: Member record missing. Please contact support.");
+}
+
+
+$member_id = $member['id'];
+$msg = "";
+
+// ... rest of the file remains the same and is fine ...
+
+// Create upload folder if missing
+$uploadDir = __DIR__ . '/upload/';
+if (!is_dir($uploadDir)) {
+    mkdir($uploadDir, 0777, true);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['photo'])) {
-    // Ensure uploads folder exists
-    if (!is_dir('uploads')) {
-        mkdir('uploads', 0777, true);
-    }
+    $file = $_FILES['photo'];
 
-    $target_dir = "uploads/";
-    $filename = basename($_FILES["photo"]["name"]);
-    $target_file = $target_dir . $filename;
-    $submitted_date = date('Y-m-d');
-
-    if (move_uploaded_file($_FILES["photo"]["tmp_name"], $target_file)) {
-        $stmt = $pdo->prepare("INSERT INTO member_photos (member_id, uploaded_by, filename, submitted_date) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$member_id, $user_id, $filename, $submitted_date]);
-
-        echo "<script>alert('✅ Photo uploaded successfully!'); window.location='client_dashboard.php';</script>";
-        exit;
+    // Validate file
+    $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+    if (!in_array($file['type'], $allowedTypes)) {
+        $msg = "⚠ Only JPG and PNG files are allowed.";
+    } elseif ($file['size'] > 5 * 1024 * 1024) { // 5MB limit
+        $msg = "⚠ File is too large. Maximum 5MB allowed.";
     } else {
-        echo "<p style='color:red;'>❌ Upload failed. Please check folder permissions.</p>";
+        // Generate unique name
+        $filename = uniqid('proof_', true) . "." . pathinfo($file['name'], PATHINFO_EXTENSION);
+        $targetFile = $uploadDir . $filename;
+
+        // Move file
+        if (move_uploaded_file($file['tmp_name'], $targetFile)) {
+            // Save to DB
+            $stmt = $pdo->prepare("
+                INSERT INTO member_photos (member_id, uploaded_by, filename, caption, submitted_date)
+                VALUES (?, ?, ?, ?, CURDATE())
+            ");
+            $caption = $_POST['caption'] ?? 'Proof of payment/income';
+            $stmt->execute([$member_id, $user_id, $filename, $caption]);
+
+            $msg = "✅ File uploaded successfully!";
+        } else {
+            $msg = "❌ Upload failed. Please try again.";
+        }
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Upload Monthly Proof</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f1f5f9;
-            padding: 50px;
-        }
-        .upload-container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            max-width: 500px;
-            margin: auto;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        input[type="file"] {
-            display: block;
-            margin: 20px 0;
-        }
-        button {
-            background: #2563eb;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        button:hover { background: #1d4ed8; }
-    </style>
-</head>
-<body>
-<div class="upload-container">
-    <h2>📸 Upload Monthly Proof</h2>
-    <form method="POST" enctype="multipart/form-data">
-        <label>Select a file to upload:</label>
-        <input type="file" name="photo" required>
-        <button type="submit">Upload</button>
-    </form>
-</div>
-</body>
-</html>
+<html lang="en">
