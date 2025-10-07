@@ -113,11 +113,11 @@ if ($user['role'] !== 'manager') {
   <!-- Sidebar -->
   <aside class="sidebar">
     <h2>Manager Panel</h2>
-    <a href="manager_dashboard.php">🏠 Dashboard</a>
+    <a href="manager_dashboard.php">🏠 Home</a>
     <a href="staff_performance.php">👥 Staff Performance</a>
     <a href="loan_overview.php">💼 Loans Overview</a>
     <a href="generate_reports.php">📊 Reports</a>
-    <a href="notifications.php">🔔 Notifications</a>
+    <a href="notifications.php">🔔 Notifications <span id="notifCount" style="background:#ef4444;color:white;padding:2px 6px;border-radius:10px;font-size:12px;margin-left:6px;">0</span></a>
     <a href="index.php?logout=1">🚪 Logout</a>
   </aside>
 

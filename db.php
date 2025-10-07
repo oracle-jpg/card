@@ -17,3 +17,20 @@ try {
     // In production, do not echo errors - log them
     exit('Database connection failed: ' . $e->getMessage());
 }
+// 🔔 NOTIFICATION FUNCTIONS
+
+// Send notification to a specific user
+function sendNotification($pdo, $user_id, $title, $message) {
+    $stmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)");
+    $stmt->execute([$user_id, $title, $message]);
+}
+
+// Send notification to all users with a specific role
+function notifyRole($pdo, $role, $title, $message) {
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE role = ?");
+    $stmt->execute([$role]);
+    $users = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($users as $uid) {
+        sendNotification($pdo, $uid, $title, $message);
+    }
+}

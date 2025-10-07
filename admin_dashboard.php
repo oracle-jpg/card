@@ -113,7 +113,7 @@ if ($user['role'] !== 'admin') {
   <!-- Sidebar -->
   <aside class="sidebar">
     <h2>Operations Manager</h2>
-    <a href="admin_dashboard.php">🏠 Dashboard</a>
+    <a href="admin_dashboard.php">🏠 Home</a>
     <a href="manage_members.php">👥 Manage Members</a>
     <a href="manage_loans.php">💼 Manage Loans</a>
     <a href="record_payments.php">💰 Record Payments</a>

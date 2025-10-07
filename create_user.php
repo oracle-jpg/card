@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <header>
     <h1>Operations Manager Panel</h1>
     <nav>
-      <a href="admin_dashboard.php">Dashboard</a>
+      <a href="admin_dashboard.php">Home</a>
       <a href="create_user.php">Add Staff/Manager</a>
       <a href="index.php?logout=1">Logout</a>
     </nav>

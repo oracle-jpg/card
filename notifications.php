@@ -1,38 +1,19 @@
 <?php
-session_start();
-require 'db.php';
+require_once 'auth.php';
+require_once 'db.php';
+$user = current_user();
 
-if (!isset($_SESSION['user_id'])) {
-  header("Location: index.php");
-  exit;
-}
+// Fetch all notifications (latest first)
+$stmt = $pdo->prepare("SELECT * FROM notifications WHERE user_id IS NULL OR user_id = ? ORDER BY created_at DESC");
+$stmt->execute([$user['id']]);
+$notifications = $stmt->fetchAll();
 
-$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$user = $stmt->fetch();
-
-if ($user['role'] !== 'manager') {
-  echo "<script>alert('Access denied!'); window.location='index.php';</script>";
-  exit;
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $title = trim($_POST['title']);
-  $message = trim($_POST['message']);
-  $target_role = $_POST['target_role'];
-
-  if ($title && $message) {
-    if ($target_role === 'all') {
-      $pdo->prepare("INSERT INTO notifications (title, message) VALUES (?, ?)")->execute([$title, $message]);
-    } else {
-      $users = $pdo->prepare("SELECT id FROM users WHERE role = ?");
-      $users->execute([$target_role]);
-      foreach ($users as $u) {
-        $pdo->prepare("INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)")->execute([$u['id'], $title, $message]);
-      }
-    }
-    echo "<script>alert('✅ Notification sent successfully!');</script>";
-  }
+// Mark notification as read via AJAX
+if (isset($_GET['mark_read'])) {
+    $id = intval($_GET['mark_read']);
+    $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
+    $stmt->execute([$id]);
+    exit('ok');
 }
 ?>
 <!DOCTYPE html>
@@ -42,37 +23,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>Notifications</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-body { background: #f8fafc; font-family: 'Inter', sans-serif; color: #1e293b; margin: 0; }
-.container { max-width: 600px; margin: 40px auto; background: #fff; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-h2 { margin-bottom: 20px; }
-label { display: block; margin-top: 10px; }
-input, textarea, select {
-  width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 8px;
-}
-button {
-  margin-top: 20px; background: #2563eb; color: #fff; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer;
-}
-button:hover { background: #1d4ed8; }
-.back { display: inline-block; margin-top: 20px; text-decoration: none; background: #475569; color: white; padding: 10px 16px; border-radius: 6px; }
+body { font-family:'Inter',sans-serif; background:#f8fafc; margin:0; padding:30px; color:#1e293b; }
+.container { max-width:800px; margin:auto; background:white; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.08); padding:25px; }
+h2 { color:#1e3a8a; margin-bottom:20px; }
+.notice { border-bottom:1px solid #e5e7eb; padding:12px 0; }
+.notice.unread { background:#eff6ff; }
+.notice:last-child { border:none; }
+.notice strong { color:#1e3a8a; display:block; }
+.notice small { color:#64748b; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h2>🔔 Send Notification</h2>
-  <form method="post">
-    <label>Target Group</label>
-    <select name="target_role" required>
-      <option value="all">All Users</option>
-      <option value="staff">Staff</option>
-      <option value="client">Clients</option>
-    </select>
-    <label>Title</label>
-    <input type="text" name="title" required>
-    <label>Message</label>
-    <textarea name="message" rows="5" required></textarea>
-    <button type="submit">Send</button>
-  </form>
-  <a class="back" href="manager_dashboard.php">← Back to Dashboard</a>
+  <h2>All Notifications</h2>
+  <?php if($notifications): foreach($notifications as $n): ?>
+    <div class="notice <?= !$n['is_read'] ? 'unread':'' ?>" onclick="markRead(<?= $n['id'] ?>)">
+      <strong><?= htmlspecialchars($n['title']) ?></strong>
+      <p><?= nl2br(htmlspecialchars($n['message'])) ?></p>
+      <small>📅 <?= date('M d, Y h:i A', strtotime($n['created_at'])) ?></small>
+    </div>
+  <?php endforeach; else: ?>
+    <p>No notifications found.</p>
+  <?php endif; ?>
 </div>
+
+<script>
+function markRead(id) {
+  fetch('notifications.php?mark_read=' + id)
+    .then(() => console.log('Marked as read'));
+}
+</script>
 </body>
 </html>

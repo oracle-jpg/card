@@ -1,83 +1,186 @@
 <?php
-// REMOVED: if (session_status() === PHP_SESSION_NONE) { session_start(); }
-require_once 'auth.php';
-require_once 'db.php';
+session_start();
+require 'db.php';
 
-// Make sure only clients can upload
-require_role(['client']);
-
-$user_id = $_SESSION['user_id'] ?? null; // Use null coalescing for safety
-
-// SECURITY CHECK: If $user_id is not set, the user is not logged in.
-if (!$user_id) {
-    // You should redirect to the login page or output a proper error.
-    die("🚫 Error: Not authenticated. Please log in.");
+// Redirect if not logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit;
 }
 
-// Check if the client is linked to a member record
-$stmt = $pdo->prepare("SELECT id, user_id FROM members WHERE user_id = ?");
+$user_id = $_SESSION['user_id'];
+
+// Get user info
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch();
+
+// Get linked member record — auto-create if missing
+$stmt = $pdo->prepare("SELECT id, name FROM members WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $member = $stmt->fetch();
 
-// CRITICAL FIX: The previous line 'if (!$member && $user['role'] === 'client')' was causing:
-// 1. Warning: Undefined variable $user
-// 2. Warning: Trying to access array offset on value of type null/bool
-// The check on $user['role'] is likely redundant if require_role(['client']) already ran.
-// However, to fix the specific error, we check if $user is set before accessing its role.
-// I am assuming a variable $user is loaded by auth.php, but this is the safest way to check.
-// If $user is not defined in auth.php, you must fix auth.php to define it.
-// Assuming $user is defined by auth.php:
-if (!$member && isset($user) && $user['role'] === 'client') {
-    die("❌ Error: Your account is not linked to any member record. Please contact support.");
-} elseif (!$member) {
-    // A secondary check in case require_role allows other roles for some reason,
-    // or if the $user variable isn't correctly set in auth.php
-    die("❌ Error: Member record missing. Please contact support.");
-}
+if (!$member) {
+    $stmt = $pdo->prepare("INSERT INTO members (user_id, name, status, created_at) VALUES (?, ?, 'active', NOW())");
+    $stmt->execute([$user_id, $user['full_name']]);
 
+    // Re-fetch
+    $stmt = $pdo->prepare("SELECT id, name FROM members WHERE user_id = ?");
+    $stmt->execute([$user_id]);
+    $member = $stmt->fetch();
+}
 
 $member_id = $member['id'];
-$msg = "";
 
-// ... rest of the file remains the same and is fine ...
-
-// Create upload folder if missing
-$uploadDir = __DIR__ . '/upload/';
-if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0777, true);
-}
-
+// Handle file upload
+$message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['photo'])) {
     $file = $_FILES['photo'];
 
-    // Validate file
-    $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!in_array($file['type'], $allowedTypes)) {
-        $msg = "⚠ Only JPG and PNG files are allowed.";
-    } elseif ($file['size'] > 5 * 1024 * 1024) { // 5MB limit
-        $msg = "⚠ File is too large. Maximum 5MB allowed.";
+    if ($file['error'] === 0) {
+        $filename = time() . '_' . basename($file['name']);
+        $targetDir = 'uploads/';
+        $targetFile = $targetDir . $filename;
+
+        if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
+        move_uploaded_file($file['tmp_name'], $targetFile);
+
+        $stmt = $pdo->prepare("INSERT INTO member_photos (member_id, filename, submitted_date) VALUES (?, ?, NOW())");
+        $stmt->execute([$member_id, $filename]);
+
+        $message = "✅ Proof uploaded successfully!";
     } else {
-        // Generate unique name
-        $filename = uniqid('proof_', true) . "." . pathinfo($file['name'], PATHINFO_EXTENSION);
-        $targetFile = $uploadDir . $filename;
-
-        // Move file
-        if (move_uploaded_file($file['tmp_name'], $targetFile)) {
-            // Save to DB
-            $stmt = $pdo->prepare("
-                INSERT INTO member_photos (member_id, uploaded_by, filename, caption, submitted_date)
-                VALUES (?, ?, ?, ?, CURDATE())
-            ");
-            $caption = $_POST['caption'] ?? 'Proof of payment/income';
-            $stmt->execute([$member_id, $user_id, $filename, $caption]);
-
-            $msg = "✅ File uploaded successfully!";
-        } else {
-            $msg = "❌ Upload failed. Please try again.";
-        }
+        $message = "❌ Failed to upload file.";
     }
 }
-?>
 
+// Fetch latest proof
+$stmt = $pdo->prepare("SELECT * FROM member_photos WHERE member_id = ? ORDER BY submitted_date DESC LIMIT 1");
+$stmt->execute([$member_id]);
+$latest_proof = $stmt->fetch();
+// 🔔 Notify staff & manager
+notifyRole($pdo, 'staff', 'New Proof Uploaded', "{$user['full_name']} uploaded a monthly proof.");
+notifyRole($pdo, 'manager', 'Client Proof Uploaded', "{$user['full_name']} uploaded proof.");
+sendNotification($pdo, $user['id'], 'Proof Uploaded', 'Your proof has been received.');
+
+?>
 <!DOCTYPE html>
 <html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Upload Proof</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Inter',sans-serif; }
+body { display:flex; background:#f8fafc; color:#1e293b; }
+
+/* Sidebar */
+.sidebar {
+  width:230px; background:#0f172a; color:#fff; min-height:100vh;
+  padding:25px 20px; display:flex; flex-direction:column;
+}
+.sidebar h2 { font-size:20px; margin-bottom:30px; }
+.sidebar a {
+  color:#e2e8f0; text-decoration:none; padding:10px;
+  margin-bottom:8px; border-radius:6px; display:block; transition:0.3s;
+}
+.sidebar a:hover { background:#1e293b; color:#fff; }
+.logout {
+  margin-top:auto; background:#dc2626; color:#fff;
+  text-align:center; padding:10px; border-radius:6px;
+  text-decoration:none;
+}
+.logout:hover { background:#b91c1c; }
+
+/* Main */
+.main { flex:1; padding:30px 40px; }
+header {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:25px;
+}
+header h1 { font-size:24px; font-weight:600; color:#1e3a8a; }
+.profile {
+  background:#e0f2fe; color:#1e3a8a;
+  padding:8px 15px; border-radius:8px; font-weight:500;
+}
+
+/* Upload box */
+.upload-card {
+  background:#fff; padding:30px; border-radius:10px;
+  box-shadow:0 3px 8px rgba(0,0,0,0.08); text-align:center;
+  max-width:600px; margin:auto;
+}
+.upload-card h2 { color:#1e3a8a; margin-bottom:15px; }
+.upload-card p { color:#475569; margin-bottom:15px; }
+.upload-card input[type=file] {
+  padding:10px; border:1px solid #cbd5e1; border-radius:6px; width:100%;
+}
+.upload-card button {
+  margin-top:15px; background:#2563eb; border:none;
+  color:#fff; padding:10px 18px; border-radius:6px; cursor:pointer;
+}
+.upload-card button:hover { background:#1d4ed8; }
+
+.message {
+  margin-bottom:15px; padding:10px; border-radius:6px;
+  font-weight:500;
+}
+.success { background:#d1fae5; color:#065f46; }
+.error { background:#fee2e2; color:#991b1b; }
+
+.latest-proof {
+  margin-top:20px; text-align:left;
+  border-top:1px solid #e2e8f0; padding-top:10px;
+}
+.latest-proof img {
+  margin-top:10px; border-radius:8px;
+  width:100%; max-width:300px;
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <h2>Client Panel</h2>
+  <a href="client_dashboard.php">📊 Home</a>
+  <a href="my_loans.php">💼 Loans</a>
+  <a href="my_payments.php">💰 Payments</a>
+  <a href="upload_photo.php">📸 Upload Proof</a>
+  <a href="my_history.php">📜 History</a>
+  <a href="index.php?logout=1" class="logout">🚪 Logout</a>
+</aside>
+
+<!-- Main -->
+<main class="main">
+  <header>
+    <h1>Upload Monthly Proof</h1>
+    <div class="profile">👤 <?= ucfirst($user['role']) ?></div>
+  </header>
+
+  <div class="upload-card">
+    <?php if ($message): ?>
+      <div class="message <?= strpos($message, '✅') !== false ? 'success' : 'error' ?>">
+        <?= htmlspecialchars($message) ?>
+      </div>
+    <?php endif; ?>
+
+    <h2>Submit Your Proof</h2>
+    <p>Please upload a clear photo or screenshot as proof of your monthly payment.</p>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="file" name="photo" accept="image/*" required>
+      <button type="submit">Upload Proof</button>
+    </form>
+
+    <?php if ($latest_proof): ?>
+      <div class="latest-proof">
+        <h3>Last Uploaded:</h3>
+        <p><?= htmlspecialchars($latest_proof['filename']) ?> (<?= date('M d, Y', strtotime($latest_proof['submitted_date'])) ?>)</p>
+        <img src="uploads/<?= htmlspecialchars($latest_proof['filename']) ?>" alt="Latest proof">
+      </div>
+      
+    <?php endif; ?>
+  </div>
+</main>
+</body>
+</html>

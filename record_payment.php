@@ -40,6 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = "⚠ Please select a valid loan and amount.";
     }
 }
+// 🔔 Notify roles
+notifyRole($pdo, 'admin', 'Payment Recorded', "{$user['full_name']} recorded a new payment.");
+notifyRole($pdo, 'manager', 'Payment Update', "{$user['full_name']} recorded a client payment.");
+if (isset($member_user_id)) {
+    sendNotification($pdo, $member_user_id, 'Payment Confirmed', 'Your payment has been successfully recorded.');
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -96,11 +103,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <aside class="sidebar">
     <h2>Staff Panel</h2>
-    <a href="staff_dashboard.php">🏠 Dashboard</a>
+    <a href="staff_dashboard.php">🏠 Home</a>
     <a href="record_payment.php">💰 Record Payment</a>
     <a href="members.php">👥 Manage Members</a>
     <a href="upload_member_photo.php">📸 Upload Proof</a>
-    <a href="notifications.php">🔔 Notifications</a>
+    <a href="notifications.php">🔔 Notifications <span id="notifCount" style="background:#ef4444;color:white;padding:2px 6px;border-radius:10px;font-size:12px;margin-left:6px;">0</span></a>
     <a href="index.php?logout=1" class="logout">🚪 Logout</a>
   </aside>
 

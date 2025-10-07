@@ -1,20 +1,24 @@
 <?php
 require_once 'auth.php';
-require_role(['staff', 'manager']); // staff & manager can view
+require_role(['staff', 'manager']);
 require_once 'db.php';
 
 $user = current_user();
+$search = $_GET['search'] ?? '';
 
-// Fetch all uploaded proofs
-$stmt = $pdo->query("
-    SELECT mp.id, mp.filename, mp.caption, mp.submitted_date, m.name AS member_name
-    FROM member_photos mp
-    JOIN members m ON mp.member_id = m.id
-    ORDER BY mp.submitted_date DESC
-");
-$proofs = $stmt->fetchAll();
+// 🔹 Search members who have uploaded proofs
+$query = "
+    SELECT DISTINCT m.id, m.name, m.phone, COUNT(mp.id) AS total_uploads
+    FROM members m
+    LEFT JOIN member_photos mp ON mp.member_id = m.id
+    WHERE m.name LIKE ? OR m.phone LIKE ?
+    GROUP BY m.id
+    ORDER BY m.name ASC
+";
+$stmt = $pdo->prepare($query);
+$stmt->execute(["%$search%", "%$search%"]);
+$members = $stmt->fetchAll();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -34,53 +38,53 @@ body{display:flex;background:#f8fafc;color:#1e293b;}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;}
 header h1{font-size:24px;font-weight:600;color:#1e3a8a;}
 .profile{background:#e0f2fe;color:#1e3a8a;padding:8px 15px;border-radius:8px;font-weight:500;}
-.card{background:#fff;padding:25px;border-radius:10px;box-shadow:0 3px 8px rgba(0,0,0,0.08);}
-table{width:100%;border-collapse:collapse;margin-top:15px;}
-th,td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left;}
-th{background:#f1f5f9;}
-td a.view{color:#2563eb;text-decoration:none;font-weight:500;}
-td a.view:hover{text-decoration:underline;}
+.table-container{background:#fff;padding:20px;border-radius:10px;box-shadow:0 3px 8px rgba(0,0,0,0.08);}
+.search-bar{display:flex;gap:10px;margin-bottom:20px;}
+.search-bar input{flex:1;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;}
+.search-bar button{background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;}
+.search-bar button:hover{background:#1d4ed8;}
+table{width:100%;border-collapse:collapse;}
+th,td{padding:12px 10px;border-bottom:1px solid #e5e7eb;text-align:left;}
+th{background:#f1f5f9;color:#475569;}
+.btn{background:#2563eb;color:#fff;padding:6px 10px;border-radius:6px;text-decoration:none;}
+.btn:hover{background:#1d4ed8;}
 </style>
 </head>
 <body>
 <aside class="sidebar">
   <h2>Staff Panel</h2>
-  <a href="staff_dashboard.php">🏠 Dashboard</a>
+  <a href="staff_dashboard.php">🏠 Home</a>
   <a href="record_payment.php">💰 Record Payment</a>
   <a href="members.php">👥 Manage Members</a>
-  <a href="staff_view_proofs.php">📸 View Proofs</a>
-  <a href="notifications.php">🔔 Notifications</a>
+  <a href="upload_member_photo.php">📸 View Proofs</a>
+  <a href="notifications.php">🔔 Notifications <span id="notifCount" style="background:#ef4444;color:white;padding:2px 6px;border-radius:10px;font-size:12px;margin-left:6px;">0</span></a>
   <a href="index.php?logout=1" class="logout">🚪 Logout</a>
 </aside>
 
 <main class="main">
   <header>
-    <h1>📸 Uploaded Proofs</h1>
-    <div class="profile"><?= htmlspecialchars($user['full_name']) ?> (Staff)</div>
+    <h1>📸 Member Proof Uploads</h1>
+    <div class="profile"><?= htmlspecialchars($user['full_name']) ?> (<?= ucfirst($user['role']) ?>)</div>
   </header>
 
-  <div class="card">
-    <h2>Member Uploaded Proofs</h2>
+  <div class="table-container">
+    <form class="search-bar" method="GET">
+      <input type="text" name="search" placeholder="Search member name or phone" value="<?= htmlspecialchars($search) ?>">
+      <button type="submit">🔍 Search</button>
+    </form>
+
     <table>
-      <tr>
-        <th>ID</th>
-        <th>Member Name</th>
-        <th>Caption</th>
-        <th>Date Submitted</th>
-        <th>Action</th>
-      </tr>
-      <?php if ($proofs): ?>
-        <?php foreach ($proofs as $p): ?>
-          <tr>
-            <td><?= $p['id'] ?></td>
-            <td><?= htmlspecialchars($p['member_name']) ?></td>
-            <td><?= htmlspecialchars($p['caption']) ?></td>
-            <td><?= htmlspecialchars($p['submitted_date']) ?></td>
-            <td><a class="view" href="upload/<?= htmlspecialchars($p['filename']) ?>" target="_blank">View / Download</a></td>
-          </tr>
-        <?php endforeach; ?>
-      <?php else: ?>
-        <tr><td colspan="5">No proofs uploaded yet.</td></tr>
+      <tr><th>#</th><th>Name</th><th>Phone</th><th>Total Uploads</th><th>Action</th></tr>
+      <?php if($members): $i=1; foreach($members as $m): ?>
+        <tr>
+          <td><?= $i++ ?></td>
+          <td><?= htmlspecialchars($m['name']) ?></td>
+          <td><?= htmlspecialchars($m['phone']) ?></td>
+          <td><?= $m['total_uploads'] ?></td>
+          <td><a href="member_uploads.php?member_id=<?= $m['id'] ?>" class="btn">👁 View Uploads</a></td>
+        </tr>
+      <?php endforeach; else: ?>
+        <tr><td colspan="5">No members found.</td></tr>
       <?php endif; ?>
     </table>
   </div>
