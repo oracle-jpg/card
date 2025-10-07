@@ -21,7 +21,7 @@ function sendAccountEmail($recipientEmail, $recipientName, $username, $password_
         $mail->Port = 587;
 
         // Sender and recipient
-        $mail->setFrom('pagtalunanarchie30@gmail.com', 'Microfinance System');
+        $mail->setFrom('CardRBI@gmail.com', 'Microfinance System');
         $mail->addAddress($recipientEmail, $recipientName);
 
         // Content
