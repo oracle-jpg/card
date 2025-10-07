@@ -125,7 +125,7 @@
   <!-- Navbar -->
   <div class="navbar">
     <div class="logo">
-      <img src="logo.png" alt="CARD RBI Logo">
+      <img src="CMRBI-1.png" alt="CARD RBI Logo">
       <h1>Microfinance</h1>
     </div>
     <nav>

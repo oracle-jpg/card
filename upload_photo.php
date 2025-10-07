@@ -143,7 +143,7 @@ header h1 { font-size:24px; font-weight:600; color:#1e3a8a; }
 <!-- Sidebar -->
 <aside class="sidebar">
   <h2>Client Panel</h2>
-  <a href="client_dashboard.php">📊 Home</a>
+  <a href="client_dashboard.php">🏠 Home</a>
   <a href="my_loans.php">💼 Loans</a>
   <a href="my_payments.php">💰 Payments</a>
   <a href="upload_photo.php">📸 Upload Proof</a>

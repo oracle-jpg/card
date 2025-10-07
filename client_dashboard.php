@@ -15,6 +15,16 @@ $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
 
+// Fetch notifications for current user or broadcast
+$notif_stmt = $pdo->prepare("SELECT * FROM notifications WHERE user_id IS NULL OR user_id = ? ORDER BY created_at DESC LIMIT 5");
+$notif_stmt->execute([$user['id']]);
+$notifications = $notif_stmt->fetchAll();
+
+// Count unread notifications
+$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE (user_id IS NULL OR user_id = ?) AND is_read = 0");
+$count_stmt->execute([$user['id']]);
+$unread_count = $count_stmt->fetchColumn();
+
 // Get linked member record — auto-create if missing
 $stmt = $pdo->prepare("SELECT id, name FROM members WHERE user_id = ?");
 $stmt->execute([$user_id]);
@@ -190,7 +200,7 @@ th { background:#f1f5f9; }
 <!-- Sidebar -->
 <aside class="sidebar">
   <h2>Client Panel</h2>
-  <a href="client_dashboard.php">📊 Home</a>
+  <a href="client_dashboard.php">🏠 Home</a>
   <a href="my_loans.php">💼 Loans</a>
   <a href="my_payments.php">💰 Payments</a>
   <a href="upload_photo.php">📸 Upload Proof</a>
