@@ -119,9 +119,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <h2>Login to CARD RBI</h2>
       <?php if(!empty($error)) echo "<p style='color:red;'>$error</p>"; ?>
       <form method="post">
-        <label>Username</label>
+        <label>Enter your username</label>
         <input type="text" name="username" required>
-        <label>Password</label>
+        <label>Enter your password</label>
         <input type="password" name="password" required>
         <button type="submit">Login</button>
       </form>

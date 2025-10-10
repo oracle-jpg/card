@@ -6,14 +6,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username']);
     $fullname = trim($_POST['full_name']);
     $email = trim($_POST['email']);
+    $phone = trim($_POST['phone']);
     $password = $_POST['password'];
 
     $role = 'client';
     $hash = password_hash($password, PASSWORD_DEFAULT);
 
     try {
-        $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role, full_name, email) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$username, $hash, $role, $fullname, $email]);
+        $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role, full_name, email,phone) VALUES (?, ?, ?, ?, ?,?)");
+        $stmt->execute([$username, $hash, $role, $fullname, $email,$phone]);
 
         $_SESSION['user_id'] = $pdo->lastInsertId();
         header("Location: client_dashboard.php");
@@ -122,6 +123,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="text" name="full_name" required>
         <label>Email</label>
         <input type="email" name="email" required>
+        <label>Phone Number</label>
+        <input type="text" name="phone" placeholder="e.g., 09xxxxxxxxx">
         <label>Password</label>
         <input type="password" name="password" required>
         <button type="submit">Register</button>

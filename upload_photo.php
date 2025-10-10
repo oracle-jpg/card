@@ -79,7 +79,19 @@ body { display:flex; background:#f8fafc; color:#1e293b; }
   width:230px; background:#0f172a; color:#fff; min-height:100vh;
   padding:25px 20px; display:flex; flex-direction:column;
 }
-.sidebar h2 { font-size:20px; margin-bottom:30px; }
+.logo-box {
+    display: flex;
+    justify-content: left; /* I-center ang image */
+    align-items: center;
+    padding: 15px 0;
+    margin-bottom: 30px;
+    border-radius: 8px;
+}
+.logo-box img {
+    height: 60px; /* Fixed height for the logo */
+    width: auto;
+    border-radius: 6px; 
+    }
 .sidebar a {
   color:#e2e8f0; text-decoration:none; padding:10px;
   margin-bottom:8px; border-radius:6px; display:block; transition:0.3s;
@@ -142,7 +154,9 @@ header h1 { font-size:24px; font-weight:600; color:#1e3a8a; }
 
 <!-- Sidebar -->
 <aside class="sidebar">
-  <h2>Client Panel</h2>
+<div class="logo-box">
+      <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
+    </div>
   <a href="client_dashboard.php">🏠 Home</a>
   <a href="my_loans.php">💼 Loans</a>
   <a href="my_payments.php">💰 Payments</a>

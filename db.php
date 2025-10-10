@@ -34,3 +34,10 @@ function notifyRole($pdo, $role, $title, $message) {
         sendNotification($pdo, $uid, $title, $message);
     }
 }
+
+// 📜 AUDIT LOG FUNCTION (Log Audit)
+function logAudit($pdo, $user_id, $action, $details = '') {
+    $stmt = $pdo->prepare("INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)");
+    $stmt->execute([$user_id, $action, $details]);
+}
+// *NO CLOSING TAG* to prevent accidental whitespace/newlines output.

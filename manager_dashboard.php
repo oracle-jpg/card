@@ -40,11 +40,19 @@ if ($user['role'] !== 'manager') {
       padding: 20px;
       position: fixed;
     }
-    .sidebar h2 {
-      font-size: 20px;
-      margin-bottom: 30px;
-      text-align: center;
-    }
+    .logo-box {
+    display: flex;
+    justify-content: left; /* I-center ang image */
+    align-items: center;
+    padding: 15px 0;
+    margin-bottom: 30px;
+    border-radius: 8px;
+}
+.logo-box img {
+    height: 60px; /* Fixed height for the logo */
+    width: auto;
+    border-radius: 6px; 
+}
     .sidebar a {
       display: block;
       color: #e2e8f0;
@@ -65,22 +73,67 @@ if ($user['role'] !== 'manager') {
       margin-left: 230px;
       padding: 30px;
     }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 25px;
-    }
-    header h1 {
-      font-size: 22px;
-      font-weight: 600;
-    }
-    .profile {
-      background: #2563eb;
-      color: white;
-      padding: 8px 15px;
-      border-radius: 6px;
-    }
+    /* HEADER AREA */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+/* Align bell and profile side-by-side */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Notification Bell Styling */
+.notif-bell {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notif-bell svg {
+  width: 24px;
+  height: 24px;
+  color: #1e3a8a;
+  transition: 0.3s;
+}
+
+.notif-bell svg:hover {
+  color: #2563eb;
+}
+
+/* Notification Count Bubble */
+.notif-bell .count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ef4444;
+  color: white;
+  font-size: 12px;
+  padding: 2px 5px;
+  border-radius: 10px;
+}
+
+/* Profile Badge */
+.profile {
+  background: #2563eb;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 500;
+}
 
     .card {
       background: #fff;
@@ -112,21 +165,28 @@ if ($user['role'] !== 'manager') {
 
   <!-- Sidebar -->
   <aside class="sidebar">
-    <h2>Manager Panel</h2>
+      <div class="logo-box">
+        <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
+    </div>
     <a href="manager_dashboard.php">🏠 Home</a>
     <a href="staff_performance.php">👥 Staff Performance</a>
     <a href="loan_overview.php">💼 Loans Overview</a>
     <a href="generate_reports.php">📊 Reports</a>
-    <a href="notifications.php">🔔 Notifications <span id="notifCount" style="background:#ef4444;color:white;padding:2px 6px;border-radius:10px;font-size:12px;margin-left:6px;">0</span></a>
+    <a href="manager_loan_approval.php">✅ Loan Approvals</a>
     <a href="index.php?logout=1">🚪 Logout</a>
   </aside>
 
   <!-- Main -->
   <main class="main">
-    <header>
-      <h1>Welcome, <?= htmlspecialchars($user['full_name']) ?> (Manager)</h1>
-      <div class="profile">Logged in</div>
-    </header>
+   <header>
+  <h1>Welcome, <?= htmlspecialchars($user['full_name']) ?> (<?= ucfirst($user['role']) ?>)</h1>
+  
+  <div class="header-right">
+    <?php include 'notification_bell.php'; ?>
+    <div class="profile">👤 <?= ucfirst($user['role']) ?></div>
+  </div>
+</header>
+
 
     <!-- System Overview -->
     <div class="card">

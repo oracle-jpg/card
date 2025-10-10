@@ -1,6 +1,10 @@
 <?php
 require_once 'db.php';
-session_start();
+
+// UPDATED: Tinitiyak na session_start() lang ang tatawagin kung walang active session
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 function current_user() {
     global $pdo;

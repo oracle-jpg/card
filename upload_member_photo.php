@@ -57,7 +57,6 @@ th{background:#f1f5f9;color:#475569;}
   <a href="record_payment.php">💰 Record Payment</a>
   <a href="members.php">👥 Manage Members</a>
   <a href="upload_member_photo.php">📸 View Proofs</a>
-  <a href="notifications.php">🔔 Notifications <span id="notifCount" style="background:#ef4444;color:white;padding:2px 6px;border-radius:10px;font-size:12px;margin-left:6px;">0</span></a>
   <a href="index.php?logout=1" class="logout">🚪 Logout</a>
 </aside>
 

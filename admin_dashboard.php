@@ -25,11 +25,21 @@ $count_stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE (user_id I
 $count_stmt->execute([$user['id']]);
 $unread_count = $count_stmt->fetchColumn();
 
-// Check role (admin / operations manager only)
+// Check role (admin only for this file)
 if ($user['role'] !== 'admin') {
   echo "<script>alert('Access denied!'); window.location='index.php';</script>";
   exit;
 }
+
+// 3. Fetch the 5 most recent pending loan applications
+$pendingLoans = $pdo->query("
+    SELECT l.id, m.name AS member_name, l.amount, l.created_at
+    FROM loans l
+    JOIN members m ON l.member_id = m.id
+    WHERE l.status = 'pending'
+    ORDER BY l.created_at DESC
+    LIMIT 5
+")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -50,10 +60,18 @@ if ($user['role'] !== 'admin') {
       padding: 20px;
       position: fixed;
     }
-    .sidebar h2 {
-      font-size: 20px;
-      margin-bottom: 30px;
-      text-align: center;
+    .logo-box {
+    display: flex;
+    justify-content: left; /* I-center ang image */
+    align-items: center;
+    padding: 15px 0;
+    margin-bottom: 30px;
+    border-radius: 8px;
+}
+.logo-box img {
+    height: 60px; /* Fixed height for the logo */
+    width: auto;
+    border-radius: 6px; 
     }
     .sidebar a {
       display: block;
@@ -75,22 +93,67 @@ if ($user['role'] !== 'admin') {
       margin-left: 230px;
       padding: 30px;
     }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 25px;
-    }
-    header h1 {
-      font-size: 22px;
-      font-weight: 600;
-    }
-    .profile {
-      background: #2563eb;
-      color: white;
-      padding: 8px 15px;
-      border-radius: 6px;
-    }
+    /* HEADER AREA */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+/* Align bell and profile side-by-side */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Notification Bell Styling */
+.notif-bell {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notif-bell svg {
+  width: 24px;
+  height: 24px;
+  color: #1e3a8a;
+  transition: 0.3s;
+}
+
+.notif-bell svg:hover {
+  color: #2563eb;
+}
+
+/* Notification Count Bubble */
+.notif-bell .count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ef4444;
+  color: white;
+  font-size: 12px;
+  padding: 2px 5px;
+  border-radius: 10px;
+}
+
+/* Profile Badge */
+.profile {
+  background: #2563eb;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 500;
+}
 
     .card {
       background: #fff;
@@ -179,11 +242,13 @@ window.onclick = function(e) {
 
   <!-- Sidebar -->
   <aside class="sidebar">
-    <h2>Operations Manager</h2>
+     <div class="logo-box">
+      <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
+    </div>
     <a href="admin_dashboard.php">🏠 Home</a>
     <a href="manage_members.php">👥 Manage Members</a>
     <a href="manage_loans.php">💼 Manage Loans</a>
-    <a href="record_payments.php">💰 Record Payments</a>
+    <a href="record_payment.php">💰 Record Payments</a>
     <a href="generate_reports.php">📊 Reports</a>
     <a href="create_user.php">➕ Create Staff / Manager</a>
     <a href="index.php?logout=1">🚪 Logout</a>
@@ -192,32 +257,10 @@ window.onclick = function(e) {
   <!-- Main -->
   <main class="main">
   <header>
-  <h1>Welcome back, <?= htmlspecialchars($user['full_name']) ?></h1>
-  <div style="display:flex;align-items:center;gap:20px;">
-    
-    <!-- 🔔 Notification Bell -->
-    <div class="notif-container">
-      <div class="bell" onclick="toggleDropdown()">🔔
-        <?php if ($unread_count > 0): ?>
-          <span class="badge"><?= $unread_count ?></span>
-        <?php endif; ?>
-      </div>
-      <div id="notifDropdown" class="dropdown">
-        <?php if ($notifications): ?>
-          <?php foreach ($notifications as $n): ?>
-            <div class="notif-item" onclick="viewNotif(<?= $n['id'] ?>)">
-              <strong><?= htmlspecialchars($n['title']) ?></strong>
-              <p><?= htmlspecialchars(substr($n['message'], 0, 60)) ?>...</p>
-            </div>
-          <?php endforeach; ?>
-          <a href="notifications.php" class="view-all">View All Notifications</a>
-        <?php else: ?>
-          <p class="empty">No notifications</p>
-        <?php endif; ?>
-      </div>
-    </div>
-
-    <!-- 👤 Profile -->
+  <h1><?= htmlspecialchars($user['full_name']) ?> (<?= ucfirst($user['role']) ?>)</h1>
+  
+  <div class="header-right">
+    <?php include 'notification_bell.php'; ?>
     <div class="profile">👤 <?= ucfirst($user['role']) ?></div>
   </div>
 </header>
@@ -231,6 +274,34 @@ window.onclick = function(e) {
         <tr><td>Total Managers</td><td><?= $pdo->query("SELECT COUNT(*) FROM users WHERE role='manager'")->fetchColumn(); ?></td></tr>
         <tr><td>Total Loans</td><td><?= $pdo->query("SELECT COUNT(*) FROM loans")->fetchColumn(); ?></td></tr>
         <tr><td>Total Payments</td><td><?= $pdo->query("SELECT COUNT(*) FROM payments")->fetchColumn(); ?></td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>⏳ Pending Loan Applications (5 Most Recent)</h3>
+      <table>
+        <tr>
+          <th>Loan ID</th>
+          <th>Client Name</th>
+          <th>Amount</th>
+          <th>Requested Date</th>
+          <th>Action</th>
+        </tr>
+        <?php if ($pendingLoans): ?>
+          <?php foreach ($pendingLoans as $loan): ?>
+          <tr>
+            <td><?= $loan['id'] ?></td>
+            <td><?= htmlspecialchars($loan['member_name']) ?></td>
+            <td>₱<?= number_format($loan['amount'], 2) ?></td>
+            <td><?= date('M d, Y', strtotime($loan['created_at'])) ?></td>
+            <td>
+              <a href="manage_loans.php?loan_id=<?= $loan['id'] ?>" style="color:#2563eb; text-decoration:none; font-weight:600;">Review</a>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        <?php else: ?>
+          <tr><td colspan="5">No pending loan applications. 🎉</td></tr>
+        <?php endif; ?>
       </table>
     </div>
 
