@@ -8,8 +8,10 @@ require_once 'db.php'; // ensure notification functions are available
 /**
  * Calculates the total amount paid for a given loan.
  */
+// IMPORTANT: Dapat ay verified payments lang ang isama sa total paid!
 function calculateTotalPaid($pdo, $loan_id) {
-    $payments_stmt = $pdo->prepare("SELECT SUM(amount) AS total_paid FROM payments WHERE loan_id = ?");
+    // ⚠️ CRITICAL FIX: I-filter ang payments by status = 'verified'
+    $payments_stmt = $pdo->prepare("SELECT SUM(amount) AS total_paid FROM payments WHERE loan_id = ? AND status = 'verified'");
     $payments_stmt->execute([$loan_id]);
     return (float) $payments_stmt->fetchColumn() ?: 0.00;
 }
@@ -28,7 +30,8 @@ function calculateTotalPayable($principal, $rate, $term_months) {
  */
 function calculateLoanFinancials($pdo, $loan_details) {
     $loan_id = $loan_details['id'];
-    $loan_details['total_paid'] = calculateTotalPaid($pdo, $loan_id);
+    // Tiyakin na ang calculateTotalPaid() ay verified payments lang ang binibilang
+    $loan_details['total_paid'] = calculateTotalPaid($pdo, $loan_id); 
     
     $total_payable = calculateTotalPayable(
         $loan_details['amount'], 
@@ -39,7 +42,7 @@ function calculateLoanFinancials($pdo, $loan_details) {
     $loan_details['total_payable'] = $total_payable;
     $loan_details['remaining_balance'] = max(0, $loan_details['total_payable'] - $loan_details['total_paid']);
     
-    // Fetch recent payments for display
+    // Fetch recent payments for display (kasama ang pending, para makita ng staff)
     $recent_payments_stmt = $pdo->prepare("SELECT * FROM payments WHERE loan_id = ? ORDER BY payment_date DESC LIMIT 5");
     $recent_payments_stmt->execute([$loan_id]);
     $loan_details['recent_payments'] = $recent_payments_stmt->fetchAll();
@@ -68,8 +71,9 @@ if ($user['role'] !== 'admin' && $user['role'] !== 'manager' && $user['role'] !=
 $loan_details = null;
 $found_loans = []; // Array to hold multiple results if searching by name
 $msg = '';
+$search_performed = false; // Flag to indicate if a search was actively performed
 
-// --- 2. Handle Payment Recording ---
+// --- 2. Handle Payment Recording (UPDATED BLOCK) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_payment'])) {
     $loan_id = $_POST['loan_id'];
     $amount = filter_var($_POST['amount'], FILTER_VALIDATE_FLOAT);
@@ -83,33 +87,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_payment'])) {
             // Start transaction
             $pdo->beginTransaction();
 
-            // 1. Record the payment
-            $stmt = $pdo->prepare("INSERT INTO payments (loan_id, payment_date, amount, method, collected_by) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$loan_id, $payment_date, $amount, $method, $user_id]);
+            // *** NEW LOGIC FOR PAYMENT STATUS ***
+            $payment_status = 'pending'; // Default status for online payments
+            $log_action = "Recorded payment of ₱$amount for Loan ID: $loan_id (Method: $method - Awaiting Verification)";
+
+            if ($method === 'Cash') {
+                // If the staff records a Cash payment, it is automatically VERIFIED.
+                $payment_status = 'verified';
+                $log_action = "Recorded payment of ₱$amount for Loan ID: $loan_id (Method: Cash - Verified)";
+            }
+            // *** END NEW LOGIC ***
+
+            // 1. Record the payment (Idinagdag ang 'status' column sa INSERT query)
+            $stmt = $pdo->prepare("INSERT INTO payments (loan_id, payment_date, amount, method, collected_by, status) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$loan_id, $payment_date, $amount, $method, $user_id, $payment_status]);
 
             // 2. Update loan status to 'ongoing' if it was 'approved'
             $pdo->prepare("UPDATE loans SET status = 'ongoing' WHERE id = ? AND status = 'approved'")
                 ->execute([$loan_id]);
 
-            // 3. Log action
+            // 3. Log action (Ginagamit na ang bagong log message)
             $pdo->prepare("INSERT INTO audit_logs (user_id, action) VALUES (?, ?)")
-                ->execute([$user_id, "Recorded payment of ₱$amount for Loan ID: $loan_id"]);
+                ->execute([$user_id, $log_action]);
             
+            // Re-fetch the UPDATED Loan Details BEFORE committing, para makuha ang bagong balanse
+            $stmt_re_fetch = $pdo->prepare("
+                SELECT l.*, m.name AS member_name, m.address, m.phone
+                FROM loans l JOIN members m ON l.member_id = m.id
+                WHERE l.id = ? 
+            ");
+            $stmt_re_fetch->execute([$loan_id]);
+            $raw_loan = $stmt_re_fetch->fetch();
+
+            if ($raw_loan) {
+                // Recalculate the financials using the new payment data
+                $loan_details = calculateLoanFinancials($pdo, $raw_loan); 
+                
+                // *** NEW: Check for fully paid status after a verified payment ***
+                // Tiyakin lang na ang payment na ito ay 'verified' bago i-update ang loan status
+                if ($payment_status === 'verified' && $loan_details['remaining_balance'] <= 0) {
+                    $pdo->prepare("UPDATE loans SET status = 'fully paid' WHERE id = ? AND status != 'fully paid'")
+                        ->execute([$loan_id]);
+                    $msg = "Payment of ₱" . number_format($amount, 2) . " successfully recorded for Loan ID: $loan_id. **Status: " . ucfirst($payment_status) . "**<br>The loan is now **FULLY PAID**! 🎉";
+                } else {
+                    $msg = "Payment of ₱" . number_format($amount, 2) . " successfully recorded for Loan ID: $loan_id. **Status: " . ucfirst($payment_status) . "**";
+                }
+                // *** END NEW CHECK ***
+            } else {
+                $loan_details = null;
+                $msg = "Payment successfully recorded, but failed to re-fetch loan details.";
+            }
+
             $pdo->commit(); // Commit transaction
-            
-            $msg = "Payment of ₱" . number_format($amount, 2) . " successfully recorded for Loan ID: $loan_id.";
             
             // Send notification to the client
             $client_info = $pdo->query("SELECT u.id AS user_id FROM loans l JOIN members m ON l.member_id = m.id JOIN users u ON m.user_id = u.id WHERE l.id = $loan_id")->fetch();
 
             if ($client_info) {
                 // Assuming sendNotification function is defined in db.php or required file
-                sendNotification($pdo, $client_info['user_id'], "Payment Recorded", "₱" . number_format($amount, 2) . " payment for Loan ID $loan_id has been successfully recorded on $payment_date.");
+                sendNotification($pdo, $client_info['user_id'], "Payment Recorded", "₱" . number_format($amount, 2) . " payment for Loan ID $loan_id has been successfully recorded on $payment_date. Status: " . ucfirst($payment_status) . ".");
             }
 
-            // Clear loan details after successful recording
-            $loan_details = null; 
-            
+
         } catch (PDOException $e) {
             $pdo->rollBack(); // Rollback if error occurs
             $msg = "Database Error recording payment: " . $e->getMessage();
@@ -123,6 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_payment'])) {
 // Handle step 2: User selects a loan from the list of multiple results
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['select_loan_id'])) {
     $search_id = trim($_POST['select_loan_id']);
+    $search_performed = true; // A selection is also a form of search
     
     $stmt = $pdo->prepare("
         SELECT l.*, m.name AS member_name, m.address, m.phone
@@ -136,14 +176,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['select_loan_id'])) {
         $loan_details = calculateLoanFinancials($pdo, $raw_loan);
         // Removed specific "Loan ID selected" message to keep it cleaner
     } else {
-        $msg = "Error: Selected Loan ID not found.";
+        $msg = "Error: Selected Loan ID not found or not in 'Approved', 'Ongoing', or 'Defaulted' status.";
     }
 }
 
 
 // Handle step 1: Initial Search by ID or Name
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search_term'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search_term']) && !isset($_POST['record_payment'])) { // Added check to prevent re-running search after payment
     $search_term = trim($_POST['search_term']);
+    $search_performed = true; // An active search was performed
     
     if (is_numeric($search_term) && $search_term > 0) {
         // Search by Loan ID (strict match)
@@ -181,15 +222,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search_term'])) {
             
         } else {
             // Multiple loans found, prepare them for selection list
-            // --- INALIS ANG MESSAGE DITO PARA HINDI NA DOBLE ANG WARNING ---
             $found_loans = array_map(function($loan) use ($pdo) {
-                $loan['total_paid'] = calculateTotalPaid($pdo, $loan['id']);
-                $loan['remaining_balance'] = calculateTotalPayable($loan['amount'], $loan['interest_rate'], $loan['term_months']) - $loan['total_paid'];
+                // IMPORTANT: Gamitin ang updated calculateTotalPaid() function
+                $loan['total_paid'] = calculateTotalPaid($pdo, $loan['id']); 
+                $loan['total_payable'] = calculateTotalPayable($loan['amount'], $loan['interest_rate'], $loan['term_months']);
+                $loan['remaining_balance'] = max(0, $loan['total_payable'] - $loan['total_paid']);
                 return $loan;
             }, $raw_loans);
             // Ensure $loan_details is null to trigger the list display in HTML
             $loan_details = null;
         }
+    }
+}
+
+// --- Display initial list of active loans if no search or specific loan is selected ---
+if (!$search_performed && !$loan_details) {
+    $stmt = $pdo->query("
+        SELECT l.*, m.name AS member_name, m.address, m.phone
+        FROM loans l JOIN members m ON l.member_id = m.id
+        WHERE l.status IN ('approved', 'ongoing', 'defaulted')
+        ORDER BY m.name ASC, l.id DESC
+    ");
+    $raw_loans_initial = $stmt->fetchAll();
+
+    if (!empty($raw_loans_initial)) {
+        $found_loans = array_map(function($loan) use ($pdo) {
+            $loan['total_paid'] = calculateTotalPaid($pdo, $loan['id']); 
+            $loan['total_payable'] = calculateTotalPayable($loan['amount'], $loan['interest_rate'], $loan['term_months']);
+            $loan['remaining_balance'] = max(0, $loan['total_payable'] - $loan['total_paid']);
+            return $loan;
+        }, $raw_loans_initial);
+    } else {
+        $msg = "No active loans found in the system.";
     }
 }
 
@@ -208,6 +272,7 @@ $unread_count = $count_stmt->fetchColumn();
     <meta charset="UTF-8">
     <title>Record Payment - CARD RBI</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
     <style>
         /* Base Styles */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -285,6 +350,9 @@ $unread_count = $count_stmt->fetchColumn();
         .payments-table th, .payments-table td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
         .payments-table th { background: #f1f5f9; }
         .payments-table tr:last-child td { border-bottom: none; }
+        .status-verified { color: #059669; font-weight: 600; }
+        .status-pending { color: #f97316; font-weight: 600; }
+        .status-rejected { color: #dc2626; font-weight: 600; }
 
         /* Loan Selection List Styling */
         .loan-selection-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; margin-top: 20px; }
@@ -306,25 +374,22 @@ $unread_count = $count_stmt->fetchColumn();
 </head>
 
 <body>
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="logo-box">
         <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
     </div>
-        <a href="staff_dashboard.php">🏠 Home</a>
+        <a href="staff_dashboard.php">🏠 Back to Home</a>
         <?php if ($user['role'] === 'admin'): ?>
             <a href="manage_members.php">👥 Manage Members</a>
             <a href="manage_loans.php">💼 Manage Loans</a>
-            <a href="create_user.php">➕ Create Staff / Manager</a>
-        <?php endif; ?>
         <a href="record_payment.php" class="active">💰 Record Payments</a>
         <?php if ($user['role'] === 'admin' || $user['role'] === 'manager'): ?>
             <a href="generate_reports.php">📊 Reports</a>
         <?php endif; ?>
-        <a href="index.php?logout=1">🚪 Logout</a>
+        <a href="create_user.php">➕ Create Personnel</a>
+        <?php endif; ?>
     </aside>
 
-    <!-- Main -->
     <main class="main">
         <header>
             <h1>💰 Record Loan Payment</h1>
@@ -337,19 +402,21 @@ $unread_count = $count_stmt->fetchColumn();
             <div class="message <?= strpos($msg, 'Error') !== false ? 'error' : 'success' ?>"><?= $msg ?></div>
         <?php endif; ?>
 
-        <!-- Search Loan Card -->
         <div class="card">
             <h3>🔍 Search Active Loan (ID or Client Name)</h3>
             <form method="post" class="search-form">
-                <input type="text" name="search_term" placeholder="Enter Loan ID or Client Name" required value="<?= isset($search_term) ? htmlspecialchars($search_term) : '' ?>">
+                <input type="text" name="search_term" placeholder="Enter Loan ID or Client Name" value="<?= isset($_POST['search_term']) ? htmlspecialchars($_POST['search_term']) : '' ?>">
                 <button type="submit">Search Loan</button>
             </form>
         </div>
 
-        <?php if (!empty($found_loans)): ?>
-            <!-- Loan Selection List Card (If multiple results found by name) -->
+        <?php 
+        // Display list of loans if no specific loan is selected AND there are loans to show.
+        // This covers both initial load and multiple search results.
+        if (!$loan_details && !empty($found_loans)): 
+        ?>
             <div class="card">
-                <h3>Pumili ng Tamang Loan (Multiple Active Loans Found)</h3>
+                <h3>Select a Loan to Record Payment</h3>
                 <form method="post">
                     <table class="loan-selection-table">
                         <thead>
@@ -358,6 +425,7 @@ $unread_count = $count_stmt->fetchColumn();
                                 <th>Loan ID</th>
                                 <th>Principal / Term</th>
                                 <th>Remaining Balance</th>
+                                <th>Status</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -368,6 +436,7 @@ $unread_count = $count_stmt->fetchColumn();
                                     <td><?= $loan['id'] ?></td>
                                     <td>₱<?= number_format($loan['amount'], 2) ?> / <?= $loan['term_months'] ?> mos</td>
                                     <td><span style="color: #dc2626; font-weight: 600;">₱<?= number_format($loan['remaining_balance'], 2) ?></span></td>
+                                    <td><span style="color:<?= $loan['status'] === 'defaulted' ? '#dc2626' : '#059669' ?>;"><?= ucfirst($loan['status']) ?></span></td>
                                     <td>
                                         <button type="submit" name="select_loan_id" value="<?= $loan['id'] ?>">Select</button>
                                     </td>
@@ -377,14 +446,16 @@ $unread_count = $count_stmt->fetchColumn();
                     </table>
                 </form>
             </div>
+        <?php elseif (!$loan_details && empty($found_loans) && $search_performed): ?>
+             <div class="message error">
+                No active loan found matching your search. Please try again.
+            </div>
         <?php endif; ?>
 
         <?php if ($loan_details): ?>
-            <!-- Loan Details and Payment Form Card -->
             <div class="card">
                 <h3>Loan Details for ID: <?= $loan_details['id'] ?> (<?= htmlspecialchars($loan_details['member_name']) ?>)</h3>
 
-                <!-- Client and Loan Information -->
                 <div class="loan-details-grid">
                     <div class="detail-box">
                         <strong>Client Name</strong>
@@ -403,7 +474,6 @@ $unread_count = $count_stmt->fetchColumn();
                         <span><?= $loan_details['term_months'] ?> months @ <?= $loan_details['interest_rate'] ?>%</span>
                     </div>
 
-                    <!-- Financial Details -->
                     <div class="detail-box financial">
                         <strong>Principal Amount</strong>
                         <span>₱<?= number_format($loan_details['amount'], 2) ?></span>
@@ -413,7 +483,7 @@ $unread_count = $count_stmt->fetchColumn();
                         <span>₱<?= number_format($loan_details['total_payable'], 2) ?></span>
                     </div>
                     <div class="detail-box financial">
-                        <strong>Total Paid</strong>
+                        <strong>Total Paid (Verified Payments Only)</strong>
                         <span>₱<?= number_format($loan_details['total_paid'], 2) ?></span>
                     </div>
                     <div class="detail-box financial">
@@ -423,7 +493,6 @@ $unread_count = $count_stmt->fetchColumn();
                 </div>
 
                 <div class="loan-details-grid" style="margin-top: 20px;">
-                    <!-- Record Payment Form -->
                     <div class="card" style="border: 1px solid #e2e8f0; padding: 15px;">
                         <h3>📥 Record New Payment</h3>
                         <form method="post" class="payment-form">
@@ -455,7 +524,6 @@ $unread_count = $count_stmt->fetchColumn();
                         </form>
                     </div>
 
-                    <!-- Recent Payments Table -->
                     <div class="card" style="border: 1px solid #e2e8f0; padding: 15px;">
                         <h3>🗓️ Recent Payments (Last 5)</h3>
                         <?php if (!empty($loan_details['recent_payments'])): ?>
@@ -465,6 +533,7 @@ $unread_count = $count_stmt->fetchColumn();
                                         <th>Date</th>
                                         <th>Amount</th>
                                         <th>Method</th>
+                                        <th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -473,6 +542,11 @@ $unread_count = $count_stmt->fetchColumn();
                                             <td><?= date('M d, Y', strtotime($payment['payment_date'])) ?></td>
                                             <td>₱<?= number_format($payment['amount'], 2) ?></td>
                                             <td><?= htmlspecialchars($payment['method']) ?></td>
+                                            <td>
+                                                <span class="status-<?= strtolower($payment['status']) ?>">
+                                                    <?= ucfirst($payment['status']) ?>
+                                                </span>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>

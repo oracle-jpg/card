@@ -227,7 +227,7 @@ body { display:flex; background:#f8fafc; color:#1e293b; }
 
 <aside class="sidebar">
     <div class="logo-box">
-        <img src="https://placehold.co/60x60/2563eb/ffffff?text=LOGO" alt="Project Logo">
+        <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
     </div>
     <a href="client_dashboard.php">🏠 Home</a>
     <a href="my_loans.php">💼 Loans</a>

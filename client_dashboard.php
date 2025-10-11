@@ -15,6 +15,13 @@ $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
 
+if (!$user) {
+    session_destroy();
+    header("Location: index.php");
+    exit;
+}
+
+
 // Fetch notifications for current user or broadcast
 $notif_stmt = $pdo->prepare("SELECT * FROM notifications WHERE user_id IS NULL OR user_id = ? ORDER BY created_at DESC LIMIT 5");
 $notif_stmt->execute([$user['id']]);
@@ -44,10 +51,10 @@ if (!$member) {
 $member_id = $member ? $member['id'] : null;
 
 // =========================================================
-// LOAN SUMMARY FIX: NOW FOCUSING ON ACTIVE LOANS AND TOTAL HISTORY
+// LOAN SUMMARY
 // =========================================================
 
-// Utility function to calculate total payable (to ensure outstanding is correct)
+// Utility function to calculate total payable 
 function calculateTotalPayable($principal, $rate, $term_months) {
     $term_in_years = $term_months / 12;
     $interest_amount = $principal * ($rate / 100) * $term_in_years;
@@ -58,7 +65,6 @@ $total_loan_amount_history = 0;
 $total_paid_history = 0;
 $outstanding = 0;
 $active_loan_balance = 0;
-$active_loan_id = null;
 $has_active_loan = false;
 
 // 1. Fetch ALL loans (approved, ongoing, paid, defaulted) to calculate total history
@@ -80,10 +86,7 @@ foreach ($all_loans as $loan) {
         $loan['term_months']
     );
     
-    // =================================================
-    // 🔥 FIX 1: Only Verified Payments are Counted!
-    // ASSUMPTION: 'payments' table has a 'status' column ('pending', 'verified')
-    // =================================================
+    // Only Verified Payments are Counted!
     $total_paid_loan_stmt = $pdo->prepare("
         SELECT SUM(amount) AS loan_paid 
         FROM payments 
@@ -92,39 +95,28 @@ foreach ($all_loans as $loan) {
     $total_paid_loan_stmt->execute([$loan_id]);
     $loan_paid = $total_paid_loan_stmt->fetchColumn() ?? 0;
     
-    // Add to history totals (Principal only, for comparison)
-    // Note: This needs to be checked carefully if you only want to display VERIFIED total paid
+    // Add to history totals
     $total_paid_history += $loan_paid; 
     
-    // Check for Active Loans (approved, ongoing, defaulted)
+    // Check for Active Loans
     if ($loan['status'] === 'approved' || $loan['status'] === 'ongoing' || $loan['status'] === 'defaulted') {
         $has_active_loan = true;
-        // Check if the loan's balance is truly settled based on verified payments
         $current_outstanding_for_loan = max(0, $total_payable - $loan_paid);
         
-        // If loan status is NOT 'paid' but the balance is zero, UPDATE STATUS if needed
-        if ($current_outstanding_for_loan <= 0 && $loan['status'] !== 'paid') {
-             // CRITICAL LOGIC: If balance is zero but status is not 'paid', the loan is settled.
-             // We won't update the DB here, but we will treat it as settled for the block logic.
-             // If you want to auto-update the DB status here, you can add an UPDATE query.
-        } else {
+        if ($current_outstanding_for_loan > 0) {
              $active_loan_balance += $current_outstanding_for_loan; // Total outstanding balance across all truly active loans
         }
     }
     
-    // Add principal amount to history total (regardless of status)
     $total_loan_amount_history += $loan['amount'];
 }
 
-// Display Total Loan: Display the sum of the principal amounts of all approved/ongoing/paid loans.
 $total_loan = $total_loan_amount_history; 
-// Display Total Paid: The total payment made across all loans (VERIFIED ONLY now).
 $total_paid = $total_paid_history; 
-// Display Outstanding: The running total balance (Principal + Interest - Verified Payments) across all active loans.
 $outstanding = $active_loan_balance;
 
 
-// Recent payments (Use VERIFIED payments history for accurate display)
+// Recent payments
 $stmt = $pdo->prepare("
     SELECT p.payment_date, p.amount, p.method, p.status 
     FROM payments p
@@ -135,16 +127,14 @@ $stmt = $pdo->prepare("
     LIMIT 5
 ");
 $stmt->execute([$member_id]);
-$recent_payments = $stmt->fetchAll(); // NOTE: Now includes PENDING payments for the list
-// If you only want to show verified payments here, add AND p.status = 'verified' to the query above.
+$recent_payments = $stmt->fetchAll();
 
 // Latest proof
 $stmt = $pdo->prepare("SELECT * FROM member_photos WHERE member_id = ? ORDER BY submitted_date DESC LIMIT 1");
 $stmt->execute([$member_id]);
 $latest_proof = $stmt->fetch();
 
-// Recent activity
-// Tiyaking nagamit ang logs table, hindi audit_logs
+// Recent activity (logs table used for client activity)
 $stmt = $pdo->prepare("SELECT * FROM logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 5"); 
 $stmt->execute([$user_id]);
 $logs = $stmt->fetchAll();
@@ -155,7 +145,13 @@ $logs = $stmt->fetchAll();
 <meta charset="UTF-8">
 <title>Client Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<link rel="stylesheet" href="style.css"> 
 <style>
+/* Pansamantalang CSS DITO: 
+    Ang lahat ng CSS na nandito ay dapat ilagay sa style.css mo 
+    para maging malinis ang client_dashboard.php.
+*/
 * { margin:0; padding:0; box-sizing:border-box; font-family:'Inter',sans-serif; }
 body { display:flex; background:#f8fafc; color:#1e293b; }
 
@@ -163,25 +159,15 @@ body { display:flex; background:#f8fafc; color:#1e293b; }
 .sidebar {
     width:230px; background:#0f172a; color:#fff; min-height:100vh;
     padding:25px 20px; display:flex; flex-direction:column;
+    position: fixed; 
 }
-
-/* --- UPDATED LOGO STYLING --- */
 .logo-box {
-    display: flex;
-    justify-content: left; /* I-center ang image */
-    align-items: center;
-    padding: 15px 0;
-    margin-bottom: 30px;
-    border-radius: 8px;
+    display: flex; justify-content: left; align-items: center;
+    padding: 15px 0; margin-bottom: 30px; border-radius: 8px;
 }
 .logo-box img {
-    height: 60px; /* Fixed height for the logo */
-    width: auto;
-    border-radius: 6px; 
+    height: 60px; width: auto; border-radius: 6px; 
     }
-/* Tinanggal ang .sidebar h2 style, dahil pinalitan na ng .logo-box */
-/* ---------------------------- */
-
 .sidebar a {
     color:#e2e8f0; text-decoration:none; padding:10px;
     margin-bottom:8px; border-radius:6px; display:block; transition:0.3s;
@@ -195,68 +181,103 @@ body { display:flex; background:#f8fafc; color:#1e293b; }
 .logout:hover { background:#b91c1c; }
 
 /* Main */
-.main { flex:1; padding:30px 40px; }
+.main { flex:1; padding:30px 40px; margin-left: 230px; } 
+
 /* HEADER AREA */
 header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 25px;
 }
-
 header h1 {
-    font-size: 22px;
-    font-weight: 600;
-    color: #1e3a8a;
+    font-size: 22px; font-weight: 600; color: #1e3a8a;
 }
-
-/* Align bell and profile side-by-side */
 .header-right {
-    display: flex;
-    align-items: center;
-    gap: 20px;
+    display: flex; align-items: center; gap: 20px;
 }
 
-/* Notification Bell Styling */
-.notif-bell {
-    position: relative;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* --- UPDATED PROFILE DROPDOWN STYLES --- */
+.profile-container {
+    position: relative; cursor: pointer; display: flex;
+    align-items: center; padding: 5px 10px; border-radius: 6px;
+    background: #2563eb; color: white;
+}
+.profile-container:hover { background: #1d4ed8; }
+
+.profile-info {
+    display: flex; align-items: center; gap: 8px; font-weight: 500;
 }
 
-.notif-bell svg {
-    width: 24px;
-    height: 24px;
-    color: #1e3a8a;
-    transition: 0.3s;
+.dropdown-menu {
+    /* Mag-overlay sa lahat ng bagay (similar to Admin) */
+    position: absolute; top: 100%; right: 0;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    width: 250px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 1001; margin-top: 5px; overflow: hidden;
+    display: none; /* Default hidden */
 }
 
-.notif-bell svg:hover {
-    color: #2563eb;
+/* Header (Name and Email) inside Dropdown */
+.dropdown-menu .user-details {
+    padding: 10px 15px; 
+    border-bottom: 1px solid #e2e8f0; 
+    margin-bottom: 5px;
+    color: #1e293b;
 }
-
-/* Notification Count Bubble */
-.notif-bell .count {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background: #ef4444;
-    color: white;
+.dropdown-menu .user-details p {
+    font-weight: 600; 
+    margin: 0;
+}
+.dropdown-menu .user-details small {
+    color: #64748b; 
     font-size: 12px;
-    padding: 2px 5px;
-    border-radius: 10px;
+    display: block;
 }
 
-/* Profile Badge */
-.profile {
-    background: #2563eb;
-    color: #fff;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-weight: 500;
+
+.dropdown-menu a {
+    display: flex; align-items: center; gap: 10px; padding: 10px 15px;
+    text-decoration: none; color: #1e293b; transition: background-color 0.2s;
 }
+
+.dropdown-menu a:hover { background: #f1f5f9; }
+/* --- END UPDATED PROFILE DROPDOWN STYLES --- */
+
+
+/* Notification Bell Styling (Kept for completeness) */
+.notif-container { position: relative; display: inline-block; cursor: pointer; }
+.notif-bell {
+    position: relative; cursor: pointer; display: flex;
+    align-items: center; justify-content: center;
+}
+.notif-bell svg {
+    width: 24px; height: 24px; color: #1e3a8a; transition: 0.3s;
+}
+.notif-bell svg:hover { color: #2563eb; }
+.notif-bell .count {
+    position: absolute; top: -6px; right: -6px;
+    background: #ef4444; color: white; font-size: 12px;
+    padding: 2px 5px; border-radius: 10px;
+}
+.dropdown {
+    display: none; position: absolute; right: 0;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    width: 280px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 999; max-height: 350px; overflow-y: auto;
+}
+.notif-item { 
+    display: block; padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    text-decoration: none; color: #1e293b;
+}
+.notif-item:hover { background: #f1f5f9; }
+.view-all {
+    display: block; text-align: center; padding: 10px;
+    background: #2563eb; color: white; text-decoration: none;
+    border-radius: 0 0 8px 8px;
+}
+.view-all:hover { background: #1d4ed8; }
+.empty { text-align: center; color: #64748b; padding: 15px; }
+
 
 /* Summary cards */
 .cards {
@@ -295,53 +316,12 @@ th { background:#f1f5f9; }
     text-decoration:none;
 }
 .btn:hover { background:#1d4ed8; }
-/* 🔔 Notification Bell */
-.notif-container { position: relative; display: inline-block; cursor: pointer; }
-.bell { font-size: 22px; position: relative; }
-.badge {
-    position: absolute; top: -6px; right: -8px;
-    background: #ef4444; color: #fff; font-size: 12px;
-    padding: 2px 5px; border-radius: 50%;
-}
-.dropdown {
-    display: none;
-    position: absolute;
-    right: 0;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    width: 280px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    z-index: 999;
-    max-height: 350px;
-    overflow-y: auto;
-}
-.notif-item {
-    padding: 10px 12px;
-    border-bottom: 1px solid #f1f5f9;
-    cursor: pointer;
-}
-.notif-item:hover { background: #f1f5f9; }
-.view-all {
-    display: block;
-    text-align: center;
-    padding: 10px;
-    background: #2563eb;
-    color: white;
-    text-decoration: none;
-    border-radius: 0 0 8px 8px;
-}
-.view-all:hover { background: #1d4ed8; }
-.empty { text-align: center; color: #64748b; padding: 15px; }
-
-
 </style>
 </head>
 <body>
 
 <aside class="sidebar">
     <div class="logo-box">
-        <!-- PALITAN ANG NASA IBABA NG ACTUAL IMAGE URL NG INYONG LOGO. -->
         <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
     </div>
     <a href="client_dashboard.php">🏠 Home</a>
@@ -349,7 +329,6 @@ th { background:#f1f5f9; }
     <a href="my_payments.php">💰 Payments</a>
     <a href="upload_photo.php">📸 Upload Proof</a>
     <a href="my_history.php">📜 History</a>
-    <a href="index.php?logout=1" class="logout">🚪 Logout</a>
 </aside>
 
 <main class="main">
@@ -357,7 +336,6 @@ th { background:#f1f5f9; }
     <h1>Welcome, <?= htmlspecialchars($user['full_name']) ?> (<?= ucfirst($user['role']) ?>)</h1>
     
     <div class="header-right">
-        <!-- Assuming notification_bell.php contains the bell icon and dropdown logic -->
         <div class="notif-container">
             <div class="notif-bell" onclick="toggleDropdown()">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
@@ -367,13 +345,15 @@ th { background:#f1f5f9; }
                     <span class="count"><?= $unread_count ?></span>
                 <?php endif; ?>
             </div>
+            
             <div class="dropdown" id="notifDropdown">
                 <?php if ($notifications): ?>
                     <?php foreach ($notifications as $notif): ?>
-                        <div class="notif-item">
-                            <strong><?= htmlspecialchars($notif['title']) ?></strong>
+                        <a href="view_notification.php?id=<?= $notif['id'] ?>" class="notif-item"> 
+                            <span style="font-weight:<?= ($notif['is_read'] == 0) ? '600' : '400' ?>; color:#1e293b;"><?= htmlspecialchars($notif['title']) ?></span>
                             <p style="margin:0; font-size:13px; color:#475569;"><?= htmlspecialchars($notif['message']) ?></p>
-                        </div>
+                            <span style="font-size:11px; color:#94a3b8; margin-top:3px; display:block;"><?= htmlspecialchars(date('M d, h:i A', strtotime($notif['created_at']))) ?></span>
+                        </a>
                     <?php endforeach; ?>
                     <a href="my_notifications.php" class="view-all">View All</a>
                 <?php else: ?>
@@ -381,7 +361,27 @@ th { background:#f1f5f9; }
                 <?php endif; ?>
             </div>
         </div>
-        <div class="profile">👤 <?= ucfirst($user['role']) ?></div>
+        
+        <div class="profile-container" onclick="toggleProfileDropdown()"> 
+            <div class="profile-info">
+                <span><?= ucfirst($user['role']) ?></span>
+                <i class="fas fa-user-circle fa-lg"></i>
+            </div>
+
+            <div id="profileDropdown" class="dropdown-menu">
+                <div class="user-details">
+                    <p><?= htmlspecialchars($user['full_name']) ?></p>
+                    <small><?= htmlspecialchars($user['email']) ?></small>
+                </div>
+                
+                <a href="change_password_page.php"> 
+                    <i class="fas fa-key"></i> Change Password
+                </a>
+                <a href="index.php?logout=1" style="color:#dc2626;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
     </div>
     </header>
 
@@ -393,17 +393,16 @@ th { background:#f1f5f9; }
             <p style="color: <?= ($outstanding > 0) ? '#dc2626' : '#10b981' ?>;">₱<?= number_format($outstanding, 2) ?></p>
         </div>
         <div class="section">
-    <h3>💳 Need a Loan?</h3>
-    
-    <!-- 🔥 FIX 2: Check both active status AND positive balance -->
-    <?php if ($has_active_loan && $outstanding > 0): ?>
-        <p style="color:#dc2626; font-weight:600;">You currently have an active loan with an outstanding balance. Please settle your remaining balance first.</p>
-        <a href="my_loans.php" class="btn" style="background:#f97316;">View Active Loan</a>
-    <?php else: ?>
-        <p style="color:#10b981; font-weight:600;">Your account is clear. You can request a new loan.</p>
-        <a href="request_loan.php" class="btn">Request New Loan</a>
-    <?php endif; ?>
-</div>
+            <h3>💳 Need a Loan?</h3>
+            
+            <?php if ($has_active_loan && $outstanding > 0): ?>
+                <p style="color:#dc2626; font-weight:600;">You currently have an active loan with an outstanding balance. Please settle your remaining balance first.</p>
+                <a href="my_loans.php" class="btn" style="background:#f97316;">View Active Loan</a>
+            <?php else: ?>
+                <p style="color:#10b981; font-weight:600;">Your account is clear. You can request a new loan.</p>
+                <a href="request_loan.php" class="btn">Request New Loan</a>
+            <?php endif; ?>
+        </div>
 
         <div class="card">
             <h3>Last Proof Upload</h3>
@@ -442,7 +441,6 @@ th { background:#f1f5f9; }
             <?php if ($logs): ?>
                 <?php foreach ($logs as $log): ?>
                     <li>
-                        <!-- Action description should come from the 'action_description' column of 'logs' table -->
                         <span><?= htmlspecialchars($log['action_description'] ?? $log['action']) ?></span> 
                         <span><?= htmlspecialchars(date('M d, Y', strtotime($log['created_at']))) ?></span>
                     </li>
@@ -452,18 +450,48 @@ th { background:#f1f5f9; }
             <?php endif; ?>
         </ul>
     </div>
+</main>
+
 <script>
+// --- NOTIFICATION DROPDOWN LOGIC ---
 function toggleDropdown() {
-    const dd = document.getElementById('notifDropdown');
-    dd.style.display = (dd.style.display === 'block') ? 'none' : 'block';
+    const notifDd = document.getElementById('notifDropdown');
+    const profileDd = document.getElementById('profileDropdown');
+    
+    if (profileDd) profileDd.style.display = 'none'; 
+    
+    // Toggle Notification Dropdown
+    notifDd.style.display = (notifDd.style.display === 'block') ? 'none' : 'block';
 }
 
+// --- PROFILE DROPDOWN LOGIC (CHANGE PASS/LOGOUT) ---
+function toggleProfileDropdown() {
+    const profileDd = document.getElementById('profileDropdown');
+    const notifDd = document.getElementById('notifDropdown');
+
+    if (notifDd) notifDd.style.display = 'none'; 
+
+    if (profileDd) {
+        profileDd.style.display = (profileDd.style.display === 'block') ? 'none' : 'block';
+    }
+}
+
+// --- GLOBAL CLICK LISTENER (FINAL LOGIC) ---
 window.onclick = function(e) {
-    if (!e.target.closest('.notif-container')) {
-        document.getElementById('notifDropdown').style.display = 'none';
+    // 1. Close Notification Dropdown ONLY if the click is outside the container
+    const notifContainer = e.target.closest('.notif-container');
+    if (!notifContainer) {
+        const notifDd = document.getElementById('notifDropdown');
+        if (notifDd) notifDd.style.display = 'none';
+    }
+
+    // 2. Close Profile Dropdown ONLY if the click is outside the container
+    const profileContainer = e.target.closest('.profile-container');
+    if (!profileContainer) {
+        const profileDd = document.getElementById('profileDropdown');
+        if (profileDd) profileDd.style.display = 'none';
     }
 }
 </script>
-</main>
 </body>
 </html>

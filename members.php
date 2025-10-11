@@ -13,19 +13,20 @@ function generate_password($length = 8) {
     return substr(str_shuffle($chars), 0, $length);
 }
 
-// ✅ Add new member
+// ✅ Add new member (for staff to add walk-in members)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
     $name = trim($_POST['name']);
     $address = trim($_POST['address']);
     $phone = trim($_POST['phone']);
     $email = trim($_POST['email']);
-    
+    $age = isset($_POST['age']) ? intval($_POST['age']) : null; // Added age
+
     // Default values for loan processing
     $loan_amount = floatval($_POST['loan_amount'] ?? 0);
     $interest_rate = 5.00; // Using 5.00 as default
     $term_months = 12;  // Using 12 as default
 
-    if ($name && $phone) {
+    if ($name && $phone) { // Ensure name and phone are present
         $username = strtolower(explode(' ', $name)[0]) . rand(100,999);
         $temp_pass = generate_password(10);
         $hash_pass = password_hash($temp_pass, PASSWORD_BCRYPT);
@@ -34,30 +35,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
             // Start transaction
             $pdo->beginTransaction();
 
-            // 1. Create User Account
+            // 1. Create User Account for this walk-in member
+            // Ensure your 'users' table has 'phone', 'address', 'age' columns
             $stmtUser = $pdo->prepare("
-                INSERT INTO users (username, password_hash, role, full_name, email)
-                VALUES (?, ?, 'client', ?, ?)
+                INSERT INTO users (username, password_hash, role, full_name, email, phone, address, age)
+                VALUES (?, ?, 'client', ?, ?, ?, ?, ?)
             ");
-            $stmtUser->execute([$username, $hash_pass, $name, $email]);
+            $stmtUser->execute([$username, $hash_pass, $name, $email, $phone, $address, $age]);
             $user_id = $pdo->lastInsertId();
 
             // 2. Add Member Record
-            // loan_start is present in members table
+            // IMPORTANT: Ensure 'age' column exists in your 'members' table.
+            // Also, make sure 'loan_start' is a DATE type in your DB.
             $stmtMem = $pdo->prepare("
-                INSERT INTO members (user_id, name, address, phone, loan_amount, loan_start, status, created_by)
-                VALUES (?, ?, ?, ?, ?, CURDATE(), 'active', ?)
+                INSERT INTO members (user_id, name, address, phone, age, loan_amount, loan_start, status, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, CURDATE(), 'active', ?)
             ");
-            $stmtMem->execute([$user_id, $name, $address, $phone, $loan_amount, $user['id']]);
+            // Assuming 'age' is nullable or has a default in DB if you don't always provide it
+            $stmtMem->execute([$user_id, $name, $address, $phone, $age, $loan_amount, $user['id']]);
             $member_id = $pdo->lastInsertId();
 
-            // 3. FIX: Create Loan Record for the Initial Amount (Corrected INSERT to match provided schema)
+            // 3. Create Loan Record for the Initial Amount
             if ($loan_amount > 0) {
                 $stmtLoan = $pdo->prepare("
                     INSERT INTO loans (member_id, amount, term_months, interest_rate, disbursed_date, status)
                     VALUES (?, ?, ?, ?, CURDATE(), 'ongoing')
                 ");
-                // Note: We use CURDATE() for disbursed_date as the loan is being processed now.
                 $stmtLoan->execute([$member_id, $loan_amount, $term_months, $interest_rate]);
             }
 
@@ -77,20 +80,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
             $msg = "✅ Member added successfully!<br>
                     <b>Username:</b> $username<br>
                     <b>Password:</b> $temp_pass<br>";
-        } catch (Exception $e) {
+        } catch (PDOException $e) { // Catch PDOException specifically for DB errors
             $pdo->rollBack();
-            // Display error for debugging
-            $msg = "❌ An error occurred: " . $e->getMessage();
+            $msg = "❌ Database error: " . $e->getMessage() . " (Code: " . $e->getCode() . ")";
+        } catch (Exception $e) { // Catch other exceptions
+            $pdo->rollBack();
+            $msg = "❌ An unexpected error occurred: " . $e->getMessage();
         }
     } else {
-        $msg = "⚠ Please fill in required fields.";
+        $msg = "⚠ Please fill in required fields (Name, Phone).";
     }
 }
 
 // fetch all members
 $stmt = $pdo->prepare("
-    SELECT m.*, u.full_name AS created_by_name 
-    FROM members m 
+    SELECT m.*, u.full_name AS created_by_name
+    FROM members m
     LEFT JOIN users u ON m.created_by = u.id
     ORDER BY m.created_at DESC
 ");
@@ -103,6 +108,7 @@ $members = $stmt->fetchAll();
 <meta charset="UTF-8">
 <title>Manage Members - Staff</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 <style>
 /* --- Layout and Indentation Adjustments --- */
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif;}
@@ -110,7 +116,19 @@ body{display:flex;background:#f8fafc;color:#1e293b;}
 
 /* Compact Sidebar */
 .sidebar{width:230px;background:#0f172a;color:#fff;min-height:100vh;padding:20px; /* Reduced vertical padding */ display:flex;flex-direction:column;}
-.sidebar h2{font-size:20px;margin-bottom:15px; /* Reduced margin */ }
+.logo-box {
+    display: flex;
+    justify-content: left; /* I-center ang image */
+    align-items: center;
+    padding: 15px 0;
+    margin-bottom: 30px;
+    border-radius: 8px;
+}
+.logo-box img {
+    height: 60px; /* Fixed height for the logo */
+    width: auto;
+    border-radius: 6px;
+    }
 .sidebar a{color:#e2e8f0;text-decoration:none;padding:8px 10px; /* Reduced vertical padding */ margin-bottom:6px; /* Reduced margin */ border-radius:6px;display:block;transition:0.3s;}
 .sidebar a:hover{background:#1e293b;color:#fff;}
 .logout{margin-top:auto;background:#dc2626;color:#fff;text-align:center;padding:10px;border-radius:6px;text-decoration:none;}
@@ -136,12 +154,16 @@ th{background:#f1f5f9;}
 </head>
 <body>
 <aside class="sidebar">
-    <h2>Staff Panel</h2>
+     <div class="logo-box">
+      <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
+    </div>
     <a href="staff_dashboard.php">🏠 Home</a>
     <a href="record_payment.php">💰 Record Payment</a>
-    <a href="members.php">👥 Manage Members</a>
-    <a href="upload_member_photo.php">📸 Upload Proof</a>
-    <a href="index.php?logout=1" class="logout">🚪 Logout</a>
+    <a href="members.php" class="active">👥 Manage Members</a>
+    <!-- Removed <a href="staff_approve_members.php">📝 Approve Clients</a> -->
+    <a href="upload_member_photo.php">📸 View Proof</a>
+    
+
 </aside>
 
 <main class="main">
@@ -163,6 +185,8 @@ th{background:#f1f5f9;}
             <input type="text" name="phone" required placeholder="09XXXXXXXXX">
             <label>Address</label>
             <input type="text" name="address" placeholder="Enter address">
+            <label>Age (optional)</label>
+            <input type="number" name="age" min="18" max="120" placeholder="Enter age">
             <label>Initial Loan Amount (₱)</label>
             <input type="number" step="0.01" name="loan_amount" placeholder="Enter amount">
             <button name="add_member">Add Member</button>
@@ -173,12 +197,15 @@ th{background:#f1f5f9;}
     <div class="card">
         <h2>📋 Member List</h2>
         <table>
-            <tr><th>ID</th><th>Name</th><th>Phone</th><th>Loan (₱)</th><th>Status</th><th>Created By</th></tr>
+            <!-- Removed <th>ID</th> -->
+            <tr><th>Name</th><th>Phone</th><th>Address</th><th>Age</th><th>Loan (₱)</th><th>Status</th><th>Created By</th></tr>
             <?php foreach ($members as $m): ?>
                 <tr>
-                    <td><?= $m['id'] ?></td>
+                    <!-- Removed <td><?= htmlspecialchars($m['id']) ?></td> -->
                     <td><?= htmlspecialchars($m['name']) ?></td>
                     <td><?= htmlspecialchars($m['phone']) ?></td>
+                    <td><?= htmlspecialchars($m['address'] ?? 'N/A') ?></td>
+                    <td><?= htmlspecialchars($m['age'] ?? 'N/A') ?></td>
                     <td><?= number_format($m['loan_amount'], 2) ?></td>
                     <td><?= htmlspecialchars($m['status'] ?? 'N/A') ?></td>
                     <td><?= htmlspecialchars($m['created_by_name'] ?? 'System') ?></td>

@@ -25,11 +25,25 @@ $members = $stmt->fetchAll();
 <meta charset="UTF-8">
 <title>View Member Proofs</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 <style>
+/* ... (your existing CSS) ... */
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif;}
 body{display:flex;background:#f8fafc;color:#1e293b;}
 .sidebar{width:230px;background:#0f172a;color:#fff;min-height:100vh;padding:25px 20px;display:flex;flex-direction:column;}
-.sidebar h2{font-size:20px;margin-bottom:30px;}
+.logo-box {
+    display: flex;
+    justify-content: left; /* I-center ang image */
+    align-items: center;
+    padding: 15px 0;
+    margin-bottom: 30px;
+    border-radius: 8px;
+}
+.logo-box img {
+    height: 60px; /* Fixed height for the logo */
+    width: auto;
+    border-radius: 6px;
+    }
 .sidebar a{color:#e2e8f0;text-decoration:none;padding:10px;margin-bottom:8px;border-radius:6px;display:block;transition:0.3s;}
 .sidebar a:hover{background:#1e293b;color:#fff;}
 .logout{margin-top:auto;background:#dc2626;color:#fff;text-align:center;padding:10px;border-radius:6px;text-decoration:none;}
@@ -52,12 +66,13 @@ th{background:#f1f5f9;color:#475569;}
 </head>
 <body>
 <aside class="sidebar">
-  <h2>Staff Panel</h2>
+   <div class="logo-box">
+      <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
+    </div>
   <a href="staff_dashboard.php">🏠 Home</a>
   <a href="record_payment.php">💰 Record Payment</a>
   <a href="members.php">👥 Manage Members</a>
   <a href="upload_member_photo.php">📸 View Proofs</a>
-  <a href="index.php?logout=1" class="logout">🚪 Logout</a>
 </aside>
 
 <main class="main">
@@ -73,17 +88,21 @@ th{background:#f1f5f9;color:#475569;}
     </form>
 
     <table>
-      <tr><th>#</th><th>Name</th><th>Phone</th><th>Total Uploads</th><th>Action</th></tr>
+      <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Total Uploads</th>
+          <th>Action</th>
+      </tr>
       <?php if($members): $i=1; foreach($members as $m): ?>
         <tr>
-          <td><?= $i++ ?></td>
           <td><?= htmlspecialchars($m['name']) ?></td>
           <td><?= htmlspecialchars($m['phone']) ?></td>
           <td><?= $m['total_uploads'] ?></td>
           <td><a href="member_uploads.php?member_id=<?= $m['id'] ?>" class="btn">👁 View Uploads</a></td>
         </tr>
       <?php endforeach; else: ?>
-        <tr><td colspan="5">No members found.</td></tr>
+        <tr><td colspan="4">No members found.</td></tr>
       <?php endif; ?>
     </table>
   </div>

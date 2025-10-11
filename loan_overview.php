@@ -58,7 +58,7 @@ th { background: #f1f5f9; }
       <tr><td colspan="6">No loans found.</td></tr>
     <?php endif; ?>
   </table>
-  <a class="back" href="manager_dashboard.php">← Back to Dashboard</a>
+  <a class="back" href="manager_dashboard.php">← Back to Home</a>
 </div>
 </body>
 </html>

@@ -1,14 +1,14 @@
 <?php
 // Tinitiyak na ang session ay tama na handle at ang user ay authenticated at authorized.
-require_once 'auth.php'; 
-require_role(['staff', 'manager', 'admin']); 
+require_once 'auth.php';
+require_role(['staff', 'manager', 'admin']);
 $user = current_user();
 
 // Helper function to determine the main dashboard link based on role
 function getDashboardLink($role) {
     if ($role === 'admin') return 'admin_dashboard.php';
     if ($role === 'manager') return 'manager_dashboard.php';
-    if ($role === 'staff') return 'staff_dashboard.php'; 
+    if ($role === 'staff') return 'staff_dashboard.php';
     return 'index.php'; // Fallback
 }
 
@@ -66,19 +66,19 @@ $filter_message = "Showing payments from " . date('M d, Y', strtotime($start_dat
 try {
     // 1. Total Loans Issued (All Time)
     $total_loans = $pdo->query("SELECT COUNT(*) FROM loans")->fetchColumn() ?? 0;
-    
+
     // 2. Total Payments Records Count (All Time Verified)
     $total_payments_all_time = $pdo->query("SELECT COUNT(*) FROM payments WHERE status = 'verified'")->fetchColumn() ?? 0;
-    
+
     // 3. Total Collected Amount (All Time Verified)
     $total_collected_all_time = $pdo->query("SELECT SUM(amount) FROM payments WHERE status = 'verified'")->fetchColumn() ?? 0;
 
     // 4. Loans with Remaining Balance (Risk Metric - All Time Active Loans)
     $total_active_loans_query = "
         SELECT COUNT(t.loan_id) FROM (
-            SELECT 
+            SELECT
                 l.id AS loan_id
-            FROM loans l 
+            FROM loans l
             LEFT JOIN payments p ON p.loan_id = l.id AND p.status = 'verified'
             WHERE l.status IN ('approved', 'ongoing')
             GROUP BY l.id, l.amount
@@ -87,13 +87,14 @@ try {
     ";
     $loans_with_balance = $pdo->query($total_active_loans_query)->fetchColumn() ?? 0;
     $total_active_loans_count = $pdo->query("SELECT COUNT(*) FROM loans WHERE status IN ('approved', 'ongoing')")->fetchColumn() ?? 1;
-    $balance_percentage = ($total_active_loans_count > 0) 
-        ? ($loans_with_balance / $total_active_loans_count) * 100 
+    $balance_percentage = ($total_active_loans_count > 0)
+        ? ($loans_with_balance / $total_active_loans_count) * 100
         : 0;
 
     // --- QUERY 5: FILTERED PAYMENTS (Detailed List for Date Range) ---
+    // Removed p.loan_id from SELECT as requested
     $payments_query = "
-        SELECT p.*, m.name AS member_name
+        SELECT p.payment_date, p.amount, p.method, m.name AS member_name
         FROM payments p
         JOIN loans l ON p.loan_id = l.id
         JOIN members m ON l.member_id = m.id
@@ -110,7 +111,7 @@ try {
 
     // --- QUERY 6: Total Collected for Filtered Period (New KPI) ---
     $total_collected_filtered = $pdo->prepare("
-        SELECT SUM(amount) FROM payments 
+        SELECT SUM(amount) FROM payments
         WHERE status = 'verified' AND payment_date BETWEEN :start_date AND :end_date_inclusive
     ");
     $total_collected_filtered->execute([
@@ -118,19 +119,23 @@ try {
         'end_date_inclusive' => $end_date_safe_inclusive
     ]);
     $total_collected_period = $total_collected_filtered->fetchColumn() ?? 0;
-    
-    
+
+
     // --- QUERY 7: Detailed LOAN Status (All Loans, grouped by ID) ---
+    // Added m.age, m.address, m.phone to SELECT
     $loan_details_query = "
-    SELECT m.name AS member_name, 
+    SELECT m.name AS member_name,
+            m.age,
+            m.address,
+            m.phone,
             l.amount AS loan_amount,
             l.status AS loan_status,
             IFNULL(SUM(p.amount), 0) AS total_paid,
             (l.amount - IFNULL(SUM(p.amount),0)) AS balance
     FROM loans l
     JOIN members m ON l.member_id = m.id
-    LEFT JOIN payments p ON p.loan_id = l.id AND p.status = 'verified' 
-    GROUP BY l.id, m.name, l.amount, l.status
+    LEFT JOIN payments p ON p.loan_id = l.id AND p.status = 'verified'
+    GROUP BY l.id, m.name, m.age, m.address, m.phone, l.amount, l.status
     ORDER BY m.name ASC
     ";
     $details = $pdo->query($loan_details_query)->fetchAll(PDO::FETCH_ASSOC);
@@ -162,20 +167,46 @@ try {
             padding: 40px;
             border-radius: 16px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-            position: relative; 
+            position: relative;
         }
-        h2 {
-            text-align: center;
+        /* Header for title and back button */
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 30px;
-            font-size: 28px;
-            color: #1e3a8a;
             border-bottom: 2px solid #eff6ff;
             padding-bottom: 10px;
         }
+        .report-header h2 {
+            margin: 0; /* Remove default h2 margin */
+            font-size: 28px;
+            color: #1e3a8a;
+            border-bottom: none; /* Remove duplicate border */
+            padding-bottom: 0;
+        }
+        .back-to-dashboard-top {
+            background: #475569;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            white-space: nowrap; /* Prevent text wrapping */
+        }
+        .back-to-dashboard-top:hover {
+            background: #334155;
+        }
+
         h3 {
-             font-size: 20px; 
-             margin-top: 30px; 
-             margin-bottom: 15px; 
+             font-size: 20px;
+             margin-top: 30px;
+             margin-bottom: 15px;
              color: #1e3a8a;
              border-left: 4px solid #3b82f6; /* Added subtle border */
              padding-left: 10px;
@@ -204,10 +235,10 @@ try {
         .stat:nth-child(1) .stat-value { color: #0d9488; }
         .stat:nth-child(2) .stat-value { color: #1e3a8a; }
         .stat:nth-child(3) .stat-value { color: #dc2626; }
-        .stat-period { 
-            background: #ecfdf5; 
-            border: 1px solid #a7f3d0; 
-            color: #047857; 
+        .stat-period {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #047857;
             font-weight: 600;
         }
 
@@ -236,69 +267,71 @@ try {
         th, td { text-align: left; padding: 12px 15px; border: 1px solid #e2e8f0; font-size: 14px; }
         th { background: #eef2ff; color: #3730a3; font-weight: 600; text-transform: uppercase; font-size: 13px; }
         tr:hover { background-color: #f9fafb; }
-        
+
         .status-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-weight: 600; font-size: 12px; text-transform: capitalize; }
         .status-approved, .status-ongoing { background-color: #e0f2fe; color: #075985; }
         .status-rejected { background-color: #ffe4e6; color: #9f1239; }
         .status-paid { background-color: #dcfce7; color: #047857; }
 
         .actions { display: flex; justify-content: center; gap: 20px; margin-top: 30px; }
-        .actions button, .back {
+        .actions button {
             background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; transition: background 0.3s; font-weight: 600; text-decoration: none;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .actions button:hover, .back:hover { background: #1d4ed8; }
+        .actions button:hover { background: #1d4ed8; }
         .btn-print-pdf { background: #10b981; } /* Green for print */
         .btn-print-pdf:hover { background: #059669; }
-        a.back { background: #475569; margin-top: 20px; display: block; width: fit-content; margin-left: auto; margin-right: auto; }
-        a.back:hover { background: #334155; }
+        /* Removed bottom .back button styles */
 
         /* --- Loading Overlay Styles --- */
         #loading-overlay {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255, 255, 255, 0.85); 
-            display: none; 
+            background: rgba(255, 255, 255, 0.85);
+            display: none;
             align-items: center; justify-content: center;
             z-index: 1000; border-radius: 16px;
         }
         .spinner {
-            border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; 
+            border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6;
             border-radius: 50%; width: 40px; height: 40px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        
+
+
         /* --- PRINT / PDF OPTIMIZATION --- */
         @media print {
-            @page { 
+            @page {
                 margin: 1.5cm; /* Mas malaking margin para sa PDF */
             }
-            body { 
-                background: white; 
-                padding: 0; 
+            body {
+                background: white;
+                padding: 0;
                 color: #000;
                 /* Font size adjustment for printing */
-                font-size: 12pt; 
+                font-size: 12pt;
             }
-            .container { 
+            .container {
                 max-width: 100%;
-                box-shadow: none; 
-                margin: 0; 
+                box-shadow: none;
+                margin: 0;
                 padding: 0;
             }
             /* Hide non-report elements */
-            .filter-form, .actions, .back {
-                display: none; 
+            .filter-form, .actions, .back-to-dashboard-top { /* Also hide the top back button on print */
+                display: none;
             }
             #loading-overlay { display: none !important; }
 
             /* Report Header */
-            h2 {
+            .report-header {
+                 border-bottom: 2px solid #ccc;
+                 padding-bottom: 5px;
+                 display: block; /* Revert to block for print if needed, or keep hidden */
+            }
+            .report-header h2 {
                 color: #000;
                 font-size: 24pt;
-                border-bottom: 2px solid #ccc;
-                padding-bottom: 5px;
             }
             h3 {
                 color: #333;
@@ -320,25 +353,25 @@ try {
                 box-shadow: none;
                 padding: 10px;
                 /* Ensure background colors are printed (if allowed by browser) */
-                -webkit-print-color-adjust: exact; 
+                -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
-                background: #f9f9f9; 
+                background: #f9f9f9;
                 min-width: 240px;
             }
             .stat-value { font-size: 18pt; color: #111; }
             .stat-label { color: #555; }
             .stat-period { background: #e6ffe6; } /* Lighter background for period stat */
-            
+
             /* Table Print Styles */
-            table { 
-                margin-top: 10px; 
+            table {
+                margin-top: 10px;
                 border: 1px solid #ccc;
                 page-break-inside: auto;
             }
-            th { 
-                background: #eee; 
-                color: #000; 
-                -webkit-print-color-adjust: exact; 
+            th {
+                background: #eee;
+                color: #000;
+                -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
                 border: 1px solid #ccc;
             }
@@ -352,13 +385,17 @@ try {
             .status-badge {
                 border: 1px solid #ccc;
                 padding: 2px 8px;
-                -webkit-print-color-adjust: exact; 
+                -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
         }
         /* Responsive Table adjustments for mobile */
         @media (max-width: 900px) {
             .container { margin: 20px; padding: 20px; }
+            .report-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .report-header h2 { text-align: center; width: 100%; }
+            .back-to-dashboard-top { width: 100%; text-align: center; }
+
             .stats { justify-content: space-between; gap: 10px; }
             .stat { min-width: 48%; }
             .filter-form { flex-wrap: wrap; align-items: stretch; }
@@ -389,7 +426,10 @@ try {
         <div class="spinner"></div>
     </div>
 
-    <h2>📈 Comprehensive Financial Report (<?= ucfirst($user_role) ?> View)</h2>
+    <div class="report-header">
+        <h2>📈 Comprehensive Financial Report (<?= ucfirst($user_role) ?> View)</h2>
+        <a class="back-to-dashboard-top" href="<?= htmlspecialchars($dashboard_link) ?>">← Back to <?= ucfirst($user_role) ?> Home</a>
+    </div>
     <p style="text-align: center; color: #64748b; margin-bottom: 15px;">**Generated by <?= htmlspecialchars($user_full_name) ?>**</p>
 
     <!-- Global KPIs (All Time) -->
@@ -414,7 +454,7 @@ try {
     </div>
 
     <?= $message ?>
-    
+
     <!-- Date Filter Section (with Quick Select) -->
     <h3 style="font-size: 20px; margin-top: 30px; margin-bottom: 15px; color: #1e3a8a;">📅 Filter Verified Payments by Date</h3>
     <form method="get" class="filter-form" id="reportFilterForm">
@@ -429,7 +469,7 @@ try {
                 <option value="custom" <?= ($range_preset === 'custom' ? 'selected' : '') ?>>Custom Range</option>
             </select>
         </div>
-        
+
         <!-- Custom Date Inputs -->
         <div class="filter-group date-input-group">
             <label for="start_date">Start Date (Custom):</label>
@@ -439,7 +479,7 @@ try {
             <label for="end_date">End Date (Custom):</label>
             <input type="date" id="end_date" name="end_date" value="<?= htmlspecialchars($end_date_safe) ?>" required <?= ($range_preset !== 'custom' ? 'disabled' : '') ?>>
         </div>
-        
+
         <!-- Apply Button -->
         <button type="submit" id="filterButton">Apply Filter</button>
     </form>
@@ -451,17 +491,16 @@ try {
             <div class="stat-value" style="color: #059669;">₱<?= number_format($total_collected_period, 2) ?></div>
         </div>
     </div>
-    
+
     <!-- Filtered Payments Table (Sino ang bagong nagbayad) -->
     <h3 style="font-size: 20px; margin-top: 30px; margin-bottom: 15px; color: #1e3a8a;">💰 Verified Payments within Period</h3>
     <p style="color: #64748b; margin-bottom: 15px;"><?= $filter_message ?></p>
-    
+
     <table>
         <thead>
             <tr>
                 <th>Payment Date</th>
                 <th>Member Name</th>
-                <th>Loan ID</th>
                 <th>Amount Paid</th>
                 <th>Method</th>
             </tr>
@@ -472,14 +511,13 @@ try {
                     <tr>
                         <td data-label="Payment Date"><?= htmlspecialchars(date('M d, Y', strtotime($row['payment_date']))) ?></td>
                         <td data-label="Member Name"><?= htmlspecialchars($row['member_name']) ?></td>
-                        <td data-label="Loan ID"><?= htmlspecialchars($row['loan_id']) ?></td>
                         <td data-label="Amount Paid" style="color: #059669;">₱<?= number_format($row['amount'], 2) ?></td>
                         <td data-label="Method"><?= htmlspecialchars($row['method']) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php else: ?>
                 <tr>
-                    <td colspan="5" style="text-align: center; color: #64748b; padding: 20px;">No verified payments found within the selected date range.</td>
+                    <td colspan="4" style="text-align: center; color: #64748b; padding: 20px;">No verified payments found within the selected date range.</td>
                 </tr>
             <?php endif; ?>
         </tbody>
@@ -493,6 +531,9 @@ try {
         <thead>
             <tr>
                 <th>Member Name</th>
+                <th>Age</th>
+                <th>Address</th>
+                <th>Phone</th>
                 <th>Loan Amount</th>
                 <th>Total Paid (All Time)</th>
                 <th>Remaining Balance</th>
@@ -504,6 +545,9 @@ try {
                 <?php foreach ($details as $row): ?>
                     <tr>
                         <td data-label="Member Name"><?= htmlspecialchars($row['member_name']) ?></td>
+                        <td data-label="Age"><?= htmlspecialchars($row['age']) ?></td>
+                        <td data-label="Address"><?= htmlspecialchars($row['address']) ?></td>
+                        <td data-label="Phone"><?= htmlspecialchars($row['phone']) ?></td>
                         <td data-label="Loan Amount">₱<?= number_format($row['loan_amount'], 2) ?></td>
                         <td data-label="Total Paid (All Time)" style="color: #059669;">₱<?= number_format($row['total_paid'], 2) ?></td>
                         <td data-label="Remaining Balance" style="color: <?= ($row['balance'] > 0) ? '#dc2626' : '#059669'; ?>;">
@@ -518,7 +562,7 @@ try {
                 <?php endforeach; ?>
             <?php else: ?>
                 <tr>
-                    <td colspan="5" style="text-align: center; color: #64748b; padding: 20px;">No loan data available.</td>
+                    <td colspan="8" style="text-align: center; color: #64748b; padding: 20px;">No loan data available.</td>
                 </tr>
             <?php endif; ?>
         </tbody>
@@ -529,7 +573,7 @@ try {
         <button type="button" class="btn-print-pdf" onclick="window.print()">🖨️ View / Download PDF Report</button>
     </div>
 
-    <a class="back" href="<?= htmlspecialchars($dashboard_link) ?>">← Back to <?= ucfirst($user_role) ?> Dashboard</a>
+    <!-- Removed the bottom "Back to Dashboard" button -->
 </div>
 
 <script>
@@ -557,7 +601,7 @@ try {
         const presetSelect = document.getElementById('range_preset');
         const filterForm = document.getElementById('reportFilterForm');
         const loadingOverlay = document.getElementById('loading-overlay');
-        
+
         // Initial setup for date inputs
         handlePresetChange(presetSelect.value);
 

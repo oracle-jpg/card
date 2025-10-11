@@ -1,146 +1,722 @@
+/* --- Global Reset and Typography --- */
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Segoe UI', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
 }
-
 body {
-  background-color: #f8f9fa;
-  color: #222;
-  font-size: 16px;
-  line-height: 1.6;
+    display: flex;
+    background: #f8fafc; /* Light Gray Background */
+    color: #1e293b;
 }
 
-/* ------------------------------
-   Header / Navbar
------------------------------- */
+/* --- Sidebar - FIXED Interactive Design --- */
+.sidebar {
+    width: 230px;
+    background: #0f172a; /* Dark Blue Primary */
+    color: #fff;
+    min-height: 100vh;
+    padding: 20px 0;
+    position: fixed; /* Ensures it stays visible */
+    top: 0;
+    left: 0;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+    z-index: 100;
+}
+
+/* Logo Area Styling */
+.logo-box {
+    display: flex;
+    justify-content: left;
+    align-items: center;
+    padding: 15px 20px;
+    margin-bottom: 30px;
+}
+.logo-box img {
+    height: 60px;
+    width: auto;
+    border-radius: 6px; 
+}
+
+/* Navigation Links Styling */
+.sidebar a {
+    display: flex; /* For icon and text alignment */
+    align-items: center;
+    gap: 10px;
+    color: #e2e8f0; /* Light text color */
+    padding: 12px 20px;
+    margin: 4px 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background-color 0.2s, color 0.2s, transform 0.1s;
+}
+
+/* Interactive Hover Effect */
+.sidebar a:hover {
+    background: #1e293b; /* Darker hover */
+    color: #fff;
+    transform: translateX(3px); /* Subtle movement for interactive feel */
+}
+
+/* Active State */
+.sidebar a.active {
+    background: #2563eb; /* Primary Blue for active state */
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+}
+
+/* --- Main Content Area --- */
+.main {
+    flex: 1;
+    margin-left: 230px; /* Offset to clear the fixed sidebar */
+    padding: 30px;
+}
+
+/* --- Header Styling --- */
 header {
-  color: #FFD700;
-  padding: 15px 20px;
-  border-bottom: 5px solid #FFD700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e5e7eb;
 }
 header h1 {
-  font-size: 24px;
-  font-weight: bold;
-  text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    color: #1e3a8a; /* Dark Blue Heading */
 }
-nav {
-  margin-top: 10px;
-  text-align: center;
-}
-nav a {
-  color: rgb(255, 255, 255);
-  margin: 0 15px;
-  text-decoration: none;
-  font-weight: 500;
-  padding: 6px 10px;
-  border-radius: 4px;
-  transition: 0.2s;
-}
-nav a:hover {
-  background-color: #FFD700;
-  color: #0033A0;
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
 }
 
-/* ------------------------------
-   Role-specific header colors
------------------------------- */
-body.client header   { background-color: #2D8CFF; }
-body.staff header    { background-color: #0033A0; }
-body.manager header  { background-color: #FFD700; color: #0033A0; }
-body.admin header    { background-color: #111; }
-
-body.manager nav a { color: #0033A0; }
-body.manager nav a:hover { background: #0033A0; color: #FFD700; }
-
-/* ------------------------------
-   Dashboard container
------------------------------- */
-.dashboard {
-  background: white;
-  padding: 25px;
-  border-radius: 8px;
-  box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
-  margin: 30px auto;
-  max-width: 700px;
+/* --- Card and Table Styling (General Purpose) --- */
+/* --- Card and Table Styling (General Purpose) --- */
+.card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    /* WALANG margin-bottom DITO */
+    /* WALANG box-shadow DITO */
 }
-.dashboard h2 {
-  margin-bottom: 15px;
-  font-weight: bold;
+.card h3 {
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-weight: 600;
 }
-body.client .dashboard h2   { color: #2D8CFF; }
-body.staff .dashboard h2    { color: #0033A0; }
-body.manager .dashboard h2  { color: #FFD700; }
-body.admin .dashboard h2    { color: #111; }
-
-.dashboard ul { list-style: none; }
-.dashboard ul li {
-  background: #f1f1f1;
-  margin: 8px 0;
-  padding: 12px;
-  border-left: 6px solid #FFD700;
-  border-radius: 4px;
-  transition: 0.2s;
+table {
+    width: 100%;
+    border-collapse: collapse;
 }
-.dashboard ul li:hover {
-  background: #0033A0;
-  color: white;
-  cursor: pointer;
+table th, table td {
+    text-align: left;
+    padding: 10px;
+    border-bottom: 1px solid #e5e7eb;
+}
+table th {
+    background: #f1f5f9;
 }
 
-/* ------------------------------
-   Buttons
------------------------------- */
-button, .btn {
-  background-color: #0033A0;
-  color: white;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: 0.2s;
+
+/* ------------------------------------------------------------------- */
+/* --- NEW: Responsive Dashboard Grid for Client/Staff Dashboards --- */
+/* ------------------------------------------------------------------- */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Single column on mobile */
+    gap: 20px;
+    margin-top: 20px;
 }
-button:hover, .btn:hover {
-  background-color: #FFD700;
-  color: #0033A0;
+/* Two columns on medium screens and up */
+@media (min-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 2fr 1fr; /* Two-thirds for main info, one-third for side info/logs */
+    }
+    .dashboard-grid .stat-box-container {
+        grid-column: 1 / span 2; /* Full width for stats */
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+    }
+}
+.stat-box {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 120px;
+}
+.stat-box h4 {
+    color: #475569;
+    font-size: 14px;
+    font-weight: 500;
+}
+.stat-box p {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-top: 5px;
 }
 
-/* ------------------------------
-   Forms
------------------------------- */
-form {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
-  margin: 20px auto;
-  max-width: 400px;
+/* --- Status Badges (For Loan/Payment Status) --- */
+.status-badge {
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
 }
-form h2 { margin-bottom: 15px; }
-form label {
-  font-weight: bold;
-  display: block;
-  margin: 10px 0 5px;
+.status-pending {
+    background-color: #fef3c7;
+    color: #fbbf24;
 }
-form input, form select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  margin-bottom: 10px;
+.status-approved {
+    background-color: #dcfce7;
+    color: #10b981;
+}
+.status-rejected {
+    background-color: #fee2e2;
+    color: #ef4444;
+}
+.status-paid {
+    background-color: #bfdbfe;
+    color: #3b82f6;
 }
 
-/* ------------------------------
-   Footer
------------------------------- */
-footer {
-  text-align: center;
-  margin-top: 30px;
-  padding: 15px;
-  background: #0033A0;
-  color: white;
-  font-style: italic;
-  border-top: 5px solid #FFD700;
+/* ------------------------------------------------------------------- */
+/* --- Form, Input, and Button Styles for Consistency (CHANGE PASSWORD STYLE) --- */
+/* ------------------------------------------------------------------- */
+
+/* Special card wrapper for forms (like Change Password) - This centers the form */
+/* Special card wrapper for forms (like Change Password) - This centers the form */
+/* Special card wrapper for forms (like Change Password) - This centers the form */
+.card-form {
+    background: #fff;
+    padding: 30px; 
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    max-width: 500px; 
+    /* WALANG margin DITO */
+    border-top: 5px solid #2563eb;
+}
+
+.card-form h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #334155;
+}
+
+/* Universal style for all common input types */
+input[type="text"], input[type="password"], input[type="number"], input[type="email"], select, textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Focus state for inputs */
+input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, input[type="email"]:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* --- Button Styling (General) --- */
+.btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.2s, opacity 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center; /* Center text/icon inside */
+    gap: 8px;
+    white-space: nowrap; /* Prevents text wrap */
+}
+.btn-primary { /* Default/Action button */
+    background-color: #2563eb;
+    color: white;
+}
+.btn-primary:hover {
+    background-color: #1d4ed8;
+}
+.btn-danger { /* Delete/Reject button */
+    background-color: #dc2626;
+    color: white;
+}
+.btn-danger:hover {
+    background-color: #b91c1c;
+}
+.btn-success { /* Approve/Confirm button */
+    background-color: #059669;
+    color: white;
+}
+.btn-success:hover {
+    background-color: #047857;
+}
+
+/* Specific submit button for forms that span full width */
+.btn-full {
+    width: 100%;
+    padding: 12px;
+}
+
+/* --- Message/Alert Styling --- */
+.message {
+    padding: 12px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    text-align: center;
+}
+.message.error {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+}
+.message.success {
+    background-color: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+}
+.message.info {
+    background-color: #dbeafe;
+    color: #2563eb;
+    border: 1px solid #93c5fd;
+}
+/* --- Header & Dropdown Styling (Shared) --- */
+
+/* Container for the profile/notification area */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    position: relative; /* Essential for dropdown positioning */
+}
+
+/* Base style for both notification and profile containers */
+.notif-container, .profile-container {
+    position: relative;
+    cursor: pointer;
+}
+
+/* Icon button base */
+.icon-btn {
+    background: none;
+    border: none;
+    color: #1e293b; /* Dark text color */
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.icon-btn:hover {
+    background-color: #e2e8f0; /* Light gray hover */
+}
+
+/* Profile area style (user name and icon) */
+.profile-info {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.profile-info:hover {
+    background-color: #e2e8f0;
+}
+
+.profile-info span {
+    margin-right: 10px;
+    font-weight: 600;
+}
+
+/* Dropdown Menu Styling (For both Notification and Profile) */
+.dropdown-menu {
+    position: absolute;
+    top: 100%; /* Position below the trigger */
+    right: 0;
+    width: 200px; /* Adjust size as needed */
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 200;
+    padding: 5px 0;
+    display: none; /* Hidden by default */
+    margin-top: 10px; /* Little space from the icon/name */
+}
+
+.dropdown-menu a {
+    display: block;
+    padding: 10px 15px;
+    color: #1e293b;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.15s;
+    border-radius: 0; /* Remove rounded corners for individual items */
+}
+
+.dropdown-menu a:hover {
+    background-color: #f1f5f9; /* Lighter hover background */
+}
+/* Ensure the icon spacing is good */
+.dropdown-menu a i {
+    margin-right: 8px;
+    width: 15px; /* Fixed width for alignment */
+}
+/* --- NEW: Modal/Pop-up Styles for Change Password --- */
+
+/* Modal Backdrop/Overlay */
+.modal-backdrop {
+    display: none; /* Hidden by default */
+    position: fixed;
+    z-index: 1000; /* Dapat nasa ibabaw ng lahat */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+    backdrop-filter: blur(3px); /* Optional: blur effect */
+    align-items: center;
+    justify-content: center;
+}
+
+/* Modal Content Box */
+.modal-content {
+    background-color: #fefefe;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 450px; /* Controlled width */
+    position: relative;
+    transform: translateY(-50px); /* Initial slightly elevated position */
+    transition: transform 0.3s ease-out;
+}
+
+/* Modal Header and Title */
+.modal-content h2 {
+    font-size: 24px;
+    color: #1e3a8a;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 10px;
+}
+
+/* Close button (X) */
+.close-btn {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    cursor: pointer;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+    color: #dc2626;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Modal Form Specifics (Reusing existing form styles) */
+.modal-content form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.modal-content label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.modal-content input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+.modal-content button[type="submit"] {
+    margin-top: 10px;
+    width: 100%;
+    background-color: #2563eb;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.modal-content button[type="submit"]:hover {
+    background-color: #1d4ed8;
+}
+/* ------------------------------------------------------------------- */
+/* --- NEW: Admin Dashboard Grid Layout (Docked/Magkadikit) --- */
+/* ------------------------------------------------------------------- */
+
+/* Container for the two top cards */
+.admin-dashboard .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; 
+    gap: 0; 
+    margin-bottom: 20px;
+    
+    /* Ito ang magbibigay ng shadow/border sa buong top section */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+    border-radius: 10px;
+    overflow: hidden; /* Para hindi lumabas ang corners ng cards */
+}
+
+/* Override ang general .card/card-form styles para lang sa loob ng admin grid */
+.admin-dashboard .dashboard-grid .card-form {
+    /* Alisin ang general shadow, radius, at margin */
+    box-shadow: none; 
+    border-radius: 0;
+    margin-bottom: 0;
+    padding: 20px; /* Panatilihin ang internal padding */
+    height: 100%; /* Ensure equal height */
+}
+
+/* Border sa pagitan ng System Overview at Pending Loans */
+.admin-dashboard .dashboard-grid .card-form:first-child {
+    border-right: 1px solid #e2e8f0;
+}
+
+/* Recent Activity Card (Full Width) - Hiwalay sa taas */
+.admin-dashboard .full-width-card {
+    grid-column: 1 / -1; 
+    margin-top: 20px; /* Space sa pagitan ng top grid at bottom card */
+    
+    /* Sariling shadow at radius para maging hiwalay na box */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+    border-radius: 10px;
+    padding: 20px;
+}
+
+/* Responsive adjustment: Single column on smaller screens */
+@media (max-width: 992px) {
+    .admin-dashboard .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    /* Ayusin ang border/corners para sa mobile view */
+    .admin-dashboard .dashboard-grid .card-form:first-child {
+        border-right: none;
+        border-bottom: 1px solid #e2e8f0;
+        border-radius: 10px 10px 0 0; /* Rounded top corners */
+    }
+    .admin-dashboard .dashboard-grid .card-form:last-of-type { 
+        border-radius: 0 0 10px 10px; /* Rounded bottom corners */
+    }
+}
+/* ------------------------------------------------------------------- */
+/* --- NEW: Admin Dashboard Grid Layout (Docked/Magkadikit) --- */
+/* ------------------------------------------------------------------- */
+
+/* Ito ang outer container para sa dalawang magkadikit na card */
+.admin-dashboard .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; 
+    gap: 0; 
+    margin-bottom: 20px;
+    
+    /* Ibalik ang shadow at radius DITO lang */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+    border-radius: 10px;
+    overflow: hidden; 
+}
+
+/* I-override ang padding at border-radius ng general .card-form DITO */
+.admin-dashboard .dashboard-grid .card-form {
+    box-shadow: none; /* Alisin ang individual shadow */
+    border-radius: 0;
+    margin-bottom: 0;
+    padding: 20px; 
+    height: 100%;
+    /* Alisin ang blue top border (galing sa .card-form general style) */
+    border-top: none; 
+}
+
+/* Border sa pagitan */
+.admin-dashboard .dashboard-grid .card-form:first-child {
+    border-right: 1px solid #e2e8f0;
+}
+
+/* Recent Activity Card (Full Width) - Humiwalay sa taas */
+.admin-dashboard .full-width-card {
+    grid-column: 1 / -1; 
+    margin-top: 20px; /* Space sa pagitan ng top grid at bottom card */
+    
+    /* Ibalik ang shadow at radius para maging hiwalay na box */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+    border-radius: 10px;
+    padding: 20px;
+}
+
+/* Responsive adjustment: Single column on smaller screens */
+@media (max-width: 992px) {
+    .admin-dashboard .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    .admin-dashboard .dashboard-grid .card-form:first-child {
+        border-right: none;
+        border-bottom: 1px solid #e2e8f0;
+        border-radius: 10px 10px 0 0;
+    }
+    .admin-dashboard .dashboard-grid .card-form:last-of-type { 
+        border-radius: 0 0 10px 10px;
+    }
+}
+/* ------------------------------------------------------------------- */
+/* --- MODAL STYLING (Para sa Change Password, etc.) --- */
+/* ------------------------------------------------------------------- */
+
+/* Backdrop (Nagdidilim sa buong screen) */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+    display: flex;
+    justify-content: center; /* I-center ang modal content horizontally */
+    align-items: center; /* I-center ang modal content vertically */
+    z-index: 1000; /* Siguraduhin na nasa ibabaw ng lahat */
+}
+
+/* Modal Content Box */
+.modal-content {
+    background: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    max-width: 90%;
+    width: 450px; /* Standard width for the form */
+    position: relative;
+    animation: fadeIn 0.3s ease-out; /* Simple entry animation */
+}
+
+/* Close Button (X button) */
+.close-btn {
+    color: #94a3b8;
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: #ef4444; /* Red on hover */
+}
+
+/* Styles para sa Form Elements sa loob ng Modal */
+.modal-content h2 {
+    color: #1e3a8a;
+    margin-bottom: 20px;
+    font-size: 22px;
+    text-align: center;
+}
+
+.modal-content label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.modal-content input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+.modal-content button[type="submit"] {
+    width: 100%;
+    background-color: #2563eb;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    margin-top: 10px;
+    transition: background-color 0.2s;
+}
+
+.modal-content button[type="submit"]:hover {
+    background-color: #1d4ed8;
+}
+
+/* Animation */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+/* --- Manager Dashboard Grid Layout --- */
+.manager-dashboard .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; 
+    /* ITO ANG PINAKA-IMPORTANTE PARA MAGDikit: */
+    gap: 0; 
+    margin-bottom: 20px;
+    
+    /* Ito ang shadow para sa buong container: */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+    border-radius: 10px;
+    overflow: hidden; /* Mahalaga para hindi lumabas ang corners ng cards */
+}
+
+/* Tiyakin na inalis ang individual shadows at radii sa loob ng grid */
+.manager-dashboard .dashboard-grid .card-form {
+    box-shadow: none; 
+    border-radius: 0;
+    margin-bottom: 0; /* Tiyakin na walang margin sa ilalim */
+    padding: 20px; 
+    height: 100%;
+    border-top: none; 
 }

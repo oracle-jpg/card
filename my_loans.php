@@ -13,6 +13,7 @@ if ($user['role'] !== 'client') {
 // =========================================================
 // LOAN CALCULATION UTILITY (CRITICAL: Must include interest)
 // =========================================================
+// This is the FIRST and CORRECT place to declare calculateTotalPayable()
 function calculateTotalPayable($principal, $rate, $term_months) {
     // Convert term to years
     $term_in_years = $term_months / 12;
@@ -77,7 +78,7 @@ foreach ($loans as $loan) {
     $loan_id = $loan['id'];
     $details = $loan; // Start with base loan data
 
-    if (in_array($loan['status'], ['approved', 'ongoing', 'defaulted', 'paid'])) {
+    if (in_array($loan['status'], ['approved', 'ongoing', 'defaulted', 'fully paid'])) {
         // Calculate the Total Payable (Principal + Interest)
         $total_payable = calculateTotalPayable($loan['amount'], $loan['interest_rate'], $loan['term_months']);
 
@@ -108,7 +109,7 @@ function getStatusColor($status) {
         case 'approved': return 'color: #10b981; font-weight: 600;'; // Green
         case 'ongoing': return 'color: #2563eb; font-weight: 600;'; // Blue
         case 'rejected': return 'color: #dc2626; font-weight: 600;'; // Red
-        case 'paid': return 'color: #059669; font-weight: 600;'; // Darker Green
+        case 'fully paid': return 'color: #059669; font-weight: 600;'; // Darker Green
         case 'cancelled': return 'color: #64748b; font-weight: 600;'; // Gray
         case 'defaulted': return 'color: #ef4444; font-weight: 700;'; // Light Red (Urgent)
         default: return 'color: #334155;';
@@ -198,16 +199,15 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
 </style>
 <script>
     function confirmCancel(loanId) {
-        // Use a custom confirmation dialog instead of window.confirm
         const modal = document.getElementById('cancelModal');
-        const confirmButton = document.getElementById('confirmCancelButton');
+        // confirmButton variable is not used, removed if not needed:
+        // const confirmButton = document.getElementById('confirmCancelButton'); 
         
         document.getElementById('loanIdToCancel').value = loanId;
         document.getElementById('modalLoanIdDisplay').textContent = loanId;
         
         modal.style.display = 'flex';
         
-        // Hide the modal when clicking outside or the close button
         modal.onclick = function(event) {
             if (event.target === modal || event.target.className === 'close-btn') {
                 modal.style.display = 'none';
@@ -215,7 +215,6 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
         };
     }
     
-    // Simple custom modal UI for confirmation (CSS defined inside the file)
     document.addEventListener('DOMContentLoaded', () => {
         const modalHtml = `
             <div id="cancelModal" style="display:none; position:fixed; z-index:100; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.4); justify-content:center; align-items:center;">
@@ -240,15 +239,14 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
 <aside class="sidebar">
     <div class="logo-box">
       <!-- Placeholder logo -->
-      <img src="https://placehold.co/60x60/2563eb/ffffff?text=LOGO" alt="Project Logo">
+      <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="Project Logo">
     </div>
     <a href="client_dashboard.php">🏠 Home</a>
-    <a href="request_loan.php">💸 Request Loan</a>
     <a href="my_loans.php" style="background:#1e293b; color:#fff;">💼 My Loans</a>
     <a href="my_payments.php">💰 My Payments</a>
     <a href="upload_photo.php">📸 Upload Proof</a>
     <a href="my_history.php">📜 My History</a>
-    <a href="index.php?logout=1" class="logout">🚪 Logout</a>
+    
 </aside>
 
 <!-- Main -->
@@ -269,7 +267,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
         <h2>📝 All Loan Applications</h2>
         <table>
             <tr>
-                <th>ID</th>
+                <!-- ID column removed for client view -->
                 <th>Amount (₱)</th>
                 <th>Interest Rate (%)</th>
                 <th>Term (Months)</th>
@@ -281,18 +279,18 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
             <?php if ($loan_details): ?>
                 <?php foreach ($loan_details as $d): ?>
                     <tr>
-                        <td><?= htmlspecialchars($d['id']) ?></td>
+                        <!-- ID column data removed -->
                         <td><?= number_format($d['amount'], 2) ?></td>
                         <td><?= htmlspecialchars($d['interest_rate']) ?></td>
                         <td><?= htmlspecialchars($d['term_months']) ?></td>
                         <td style="<?= getStatusColor($d['status']) ?>"><?= htmlspecialchars(ucfirst($d['status'])) ?></td>
                         <td><?= htmlspecialchars(date('M d, Y', strtotime($d['created_at']))) ?></td>
                         <td>
-                            <?php if (in_array($d['status'], ['approved', 'ongoing', 'defaulted', 'paid'])): ?>
+                            <?php if (in_array($d['status'], ['approved', 'ongoing', 'defaulted', 'fully paid'])): ?>
                                 <p style="font-size: 13px; line-height: 1.4;">
                                     <strong>Total Payable:</strong> ₱<?= number_format($d['total_payable'], 2) ?><br>
                                     <strong>Total Paid:</strong> ₱<?= number_format($d['total_paid'], 2) ?><br>
-                                    <?php if ($d['status'] !== 'paid'): ?>
+                                    <?php if ($d['status'] !== 'fully paid'): ?>
                                         <strong style="color: <?= $d['remaining_balance'] > 0 ? '#dc2626' : '#059669' ?>;">Remaining:</strong> ₱<?= number_format($d['remaining_balance'], 2) ?>
                                     <?php else: ?>
                                         <strong style="color: #059669;">Remaining:</strong> ₱0.00 (Fully Paid)
@@ -312,7 +310,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
                     </tr>
                 <?php endforeach; ?>
             <?php else: ?>
-                <tr><td colspan="8" class="no-data">You have not requested any loans yet.</td></tr>
+                <tr><td colspan="7" class="no-data">You have not requested any loans yet.</td></tr>
             <?php endif; ?>
         </table>
     </div>

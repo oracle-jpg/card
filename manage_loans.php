@@ -163,8 +163,8 @@ $unread_count = $count_stmt->fetchColumn();
         <a href="manage_loans.php">💼 Manage Loans</a>
         <a href="record_payment.php">💰 Record Payments</a>
         <a href="generate_reports.php">📊 Reports</a>
-        <a href="create_user.php">➕ Create Staff / Manager</a>
-        <a href="index.php?logout=1">🚪 Logout</a>
+        <a href="create_user.php">➕ Create Personnel</a>
+        
     </aside>
 
     <!-- Main -->

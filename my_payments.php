@@ -176,7 +176,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
         <a href="loan_approvals.php">✅ Loan Approvals</a>
         <a href="record_payment.php">💰 Record Payment</a> 
     <?php endif; ?>
-    <a href="index.php?logout=1" class="logout">🚪 Logout</a>
+    
 </aside>
 
 <!-- Main -->
@@ -211,7 +211,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
         <table>
             <tr>
                 <th>Date</th>
-                <th>Loan ID</th>
+                <!-- <th>Loan ID</th> Removed Loan ID column header -->
                 <th>Amount (₱)</th>
                 <th>Method</th>
                 <?php if($user['role']=='staff') echo "<th>Member</th>"; ?>
@@ -220,7 +220,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
                 <?php foreach ($payments as $p): ?>
                     <tr>
                         <td><?= htmlspecialchars(date('M d, Y', strtotime($p['payment_date']))) ?></td>
-                        <td><?= htmlspecialchars($p['loan_id']) ?></td>
+                        <!-- <td><?= htmlspecialchars($p['loan_id']) ?></td> Removed Loan ID data cell -->
                         <td><?= number_format($p['amount'], 2) ?></td>
                         <td><?= htmlspecialchars($p['method']) ?></td>
                         <?php if($user['role']=='staff'): ?>
@@ -229,7 +229,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
                     </tr>
                 <?php endforeach; ?>
             <?php else: ?>
-                <tr><td colspan="<?= $user['role']=='staff' ? 5 : 4 ?>" class="no-data">No verified payments yet.</td></tr>
+                <tr><td colspan="<?= $user['role']=='staff' ? 4 : 3 ?>" class="no-data">No verified payments yet.</td></tr>
             <?php endif; ?>
         </table>
     </div>

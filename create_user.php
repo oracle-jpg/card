@@ -7,7 +7,7 @@ $user = current_user();
 $msg = '';
 $user_full_name = $user['full_name'] ?? 'Admin User';
 // Dito inayos: Tiyakin na ang value ay 'System Administrator' at hindi '1' (na galing sa boolean true)
-$user_role_display = ($user['role'] === 'admin') ? 'System Administrator' : ucfirst($user['role']);
+$user_role_display = ($user['role'] === 'admin') ? 'Admin' : ucfirst($user['role']);
 $dashboard_link = 'admin_dashboard.php'; // Link pabalik sa Admin Dashboard
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -19,9 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Basic validation
     if (empty($username) || empty($password) || empty($fullname) || empty($email)) {
-        $msg = "Lahat ng field ay kailangan.";
+        $msg = "All fields are required.";
     } elseif (!in_array($role, ['staff', 'manager'])) {
-        $msg = "Di-wastong role. Staff/Manager lang ang pinapayagan.";
+        $msg = "Invalid role. Only Staff/Manager is allowed.";
     } else {
         $hash = password_hash($password, PASSWORD_DEFAULT);
         try {
@@ -29,12 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $check_stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
             $check_stmt->execute([$username]);
             if ($check_stmt->fetchColumn() > 0) {
-                 $msg = "Error: Ang username na '$username' ay ginagamit na.";
+                 $msg = "Error: Username '$username' is already in use.";
             } else {
                 // Insert new user
                 $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role, full_name, email) VALUES (?, ?, ?, ?, ?)");
                 $stmt->execute([$username, $hash, $role, $fullname, $email]);
-                $msg = "Success: User (Role: " . ucfirst($role) . ") ay matagumpay na nagawa.";
+                $msg = "Success: User (Role: " . ucfirst($role) . ") was successfully created.";
             }
         } catch (PDOException $e) {
             $msg = "Database Error: " . htmlspecialchars($e->getMessage());
@@ -264,7 +264,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <nav>
             <a href="<?= htmlspecialchars($dashboard_link) ?>">🏠 Home</a>
-            <a href="create_user.php" class="active">👤 Create Personnel</a>
+            <a href="manage_members.php">👥 Manage Members</a>
+        <a href="manage_loans.php">💼 Manage Loans</a>
+        <a href="record_payment.php">💰 Record Payments</a>
+        <a href="generate_reports.php">📊 Reports</a>
+            <a href="create_user.php" class="active">➕ Create Personnel</a>
         </nav>  
     </aside>
 

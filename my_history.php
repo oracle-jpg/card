@@ -94,7 +94,7 @@ try {
     <a href="my_payments.php">💰 My Payments</a>
     <a href="upload_photo.php">📸 Upload Proof</a>
     <a href="my_history.php" style="background:#1e293b;color:#fff;">📜 My History</a>
-    <a href="index.php?logout=1" class="logout">🚪 Logout</a>
+   
 </aside>
 
 <!-- Main -->

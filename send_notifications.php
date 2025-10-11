@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$_SESSION['user_id'], $title, $message, $target_role, $target_user_id]);
         echo "✅ Notification sent successfully!";
     } else {
-        echo "⚠️ Title and message are required.";
+        echo "⚠️Title and message are required.";
     }
 }
 ?>

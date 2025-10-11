@@ -210,7 +210,7 @@ button:hover { opacity:0.9; }
     </tr>
     <?php endforeach; ?>
 </table>
-<p><a href="manager_dashboard.php" class="btn-secondary">⬅ Back to Dashboard</a></p>
+<p><a href="manager_dashboard.php" class="btn-secondary">⬅ Back to Home</a></p>
 
 </body>
 </html>

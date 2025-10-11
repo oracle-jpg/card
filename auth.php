@@ -21,4 +21,9 @@ function require_role($roles) {
         exit;
     }
 }
+function log_action($pdo, $user_id, $description) {
+    $stmt = $pdo->prepare("INSERT INTO logs (user_id, action_description) VALUES (?, ?)");
+    $stmt->execute([$user_id, $description]);
+}
+
 ?>
