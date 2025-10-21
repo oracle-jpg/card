@@ -121,17 +121,28 @@ try {
             </thead>
             <tbody>
                 <?php if ($logs): ?>
-                    <?php foreach ($logs as $log): ?>
+                    <?php foreach ($logs as $log):
+                        $original_description = $log['action_description'];
+                        // Use preg_replace to remove " for Loan #<number>" or " for Loan #<number>."
+                        $cleaned_description = preg_replace('/ for Loan #[0-9]+(\.|$)/', '.', $original_description);
+                        // Ensure there's only one period at the end if one was added by replacement
+                        $cleaned_description = rtrim($cleaned_description, '.') . '.';
+                        // Clean any leading/trailing whitespace
+                        $cleaned_description = trim($cleaned_description);
+                        // Ensure it ends with a period
+                        if (substr($cleaned_description, -1) !== '.') {
+                            $cleaned_description .= '.';
+                        }
+                        ?>
                         <tr>
                             <td><?= date('F d, Y h:i A', strtotime($log['created_at'])) ?></td>
-                            <td><?= htmlspecialchars($log['action_description']) ?></td>
+                            <td><?= htmlspecialchars($cleaned_description) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr><td colspan="2" class="no-data">No recorded activity yet.</td></tr>
                 <?php endif; ?>
-            </tbody>
-        </table>
+            </tbody>        </table>
     </div>
 
 </main>

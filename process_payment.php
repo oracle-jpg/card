@@ -40,8 +40,8 @@ $outstanding = 0;
 if ($member_id) {
     $active_loans_stmt = $pdo->prepare("
         SELECT id, amount, interest_rate, term_months
-        FROM loans 
-        WHERE member_id = ? 
+        FROM loans
+        WHERE member_id = ?
         AND status IN ('approved', 'ongoing', 'defaulted')
     ");
     $active_loans_stmt->execute([$member_id]);
@@ -51,8 +51,8 @@ if ($member_id) {
         $total_payable = calculateTotalPayable($loan['amount'], $loan['interest_rate'], $loan['term_months']);
 
         $total_paid_loan_stmt = $pdo->prepare("
-            SELECT SUM(amount) AS loan_paid 
-            FROM payments 
+            SELECT SUM(amount) AS loan_paid
+            FROM payments
             WHERE loan_id = ? AND status = 'verified'
         ");
         $total_paid_loan_stmt->execute([$loan['id']]);
@@ -64,15 +64,17 @@ if ($member_id) {
 }
 
 // =========================================================
-// Fetch Active Loans for Dropdown
+// Fetch Active Loans for Dropdown (and now for single selection)
 // =========================================================
-$loans = $pdo->prepare("
-    SELECT id, amount, status 
-    FROM loans 
+$loans_query = $pdo->prepare("
+    SELECT id, amount, status
+    FROM loans
     WHERE member_id = ? AND status IN ('approved', 'ongoing')
 ");
-$loans->execute([$member_id]);
-$active_loans = $loans->fetchAll();
+$loans_query->execute([$member_id]);
+$active_loans = $loans_query->fetchAll(); // This now holds all active loans
+
+$num_active_loans = count($active_loans);
 
 // =========================================================
 // PAYMENT SUBMISSION LOGIC (Updated to match database columns and file upload)
@@ -81,9 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $loan_id = filter_input(INPUT_POST, 'loan_id', FILTER_VALIDATE_INT);
     $amount = filter_input(INPUT_POST, 'amount', FILTER_VALIDATE_FLOAT);
     $payment_method = $_POST['payment_method'];
-    
+
     // NEW: Use sender_account_number to match the database column
-    $sender_account_number = trim($_POST['sender_account_number'] ?? ''); 
+    $sender_account_number = trim($_POST['sender_account_number'] ?? '');
     $reference_no = trim($_POST['reference_no'] ?? '');
     $payment_date = date('Y-m-d');
     $proof_of_payment_path = null; // Default value
@@ -119,29 +121,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = "Sorry, there was an error uploading your file.";
                 }
             }
-            
+
             // 3. Insert Payment Record only if no error occurred during upload/validation
             if (empty($error)) {
                 $pdo->beginTransaction();
                 try {
                     // **CRITICAL FIX: Changed column names from 'gcash_number'/'reference_no' to 'sender_account_number'/'reference_number'**
                     $stmt = $pdo->prepare("
-                        INSERT INTO payments 
+                        INSERT INTO payments
                             (loan_id, amount, payment_date, method, sender_account_number, reference_number, proof_of_payment_path, created_at, status)
-                        VALUES 
+                        VALUES
                             (?, ?, ?, ?, ?, ?, ?, NOW(), 'pending')
                     ");
-                    
+
                     $stmt->execute([
-                        $loan_id, 
-                        $amount, 
-                        $payment_date, 
-                        $payment_method, 
+                        $loan_id,
+                        $amount,
+                        $payment_date,
+                        $payment_method,
                         $sender_account_number,
                         $reference_no,         // Pareho lang ang name sa DB: reference_number
                         $proof_of_payment_path
                     ]);
-                    
+
                     // Log action (assuming log_action function is defined in auth.php)
                     if (function_exists('log_action')) {
                         log_action($pdo, $user['id'], "Declared a payment of ₱" . number_format($amount, 2) . " via {$payment_method} for Loan #{$loan_id}.");
@@ -149,10 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $pdo->commit();
                     $msg = "✅ Payment declaration successful! Staff will verify your payment soon.";
-                    
+
                     // Clear post data after successful submission
                     unset($_POST);
-                    
+
                 } catch (PDOException $e) {
                     $pdo->rollBack();
                     $error = "Database error: " . $e->getMessage() . " - Check if all columns are present: sender_account_number, reference_number, proof_of_payment_path";
@@ -175,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         /* Base Styles */
         * { margin:0; padding:0; box-sizing:border-box; font-family:'Inter',sans-serif; }
         body { display:flex; background:#f8fafc; color:#1e293b; }
-        
+
         /* Sidebar */
         .sidebar{width:230px;background:#0f172a;color:#fff;min-height:100vh;padding:25px 20px;display:flex;flex-direction:column;}
         .logo-box { display: flex; justify-content: left; align-items: center; padding: 15px 0; margin-bottom: 30px; border-radius: 8px; }
@@ -192,20 +194,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         /* Form Elements */
         label { display: block; margin-top: 15px; margin-bottom: 5px; font-weight: 500; color: #334155; }
-        input[type="number"], input[type="text"], input[type="file"], select { 
-            width: 100%; padding: 12px; border: 1px solid #cbd5e1; 
+        input[type="number"], input[type="text"], input[type="file"], select {
+            width: 100%; padding: 12px; border: 1px solid #cbd5e1;
             border-radius: 8px; font-size: 16px; transition: border-color 0.3s;
         }
         input:focus, select:focus { border-color: #2563eb; outline: none; }
-        
+
         /* Buttons */
-        button[type="submit"] { 
-            width: 100%; margin-top: 25px; background:#10b981; border:none; color:white; 
-            padding:12px 20px; border-radius:8px; cursor:pointer; font-size: 16px; font-weight: 600; 
+        button[type="submit"] {
+            width: 100%; margin-top: 25px; background:#10b981; border:none; color:white;
+            padding:12px 20px; border-radius:8px; cursor:pointer; font-size: 16px; font-weight: 600;
         }
         button[type="submit"]:hover { background:#059669; }
-        .secondary-btn { 
-            background: #64748b !important; 
+        .secondary-btn {
+            background: #64748b !important;
             margin-top: 10px;
         }
         .secondary-btn:hover { background: #475569 !important; }
@@ -217,6 +219,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .balance-info { text-align: center; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #e0f2fe; border: 1px solid #93c5fd;}
         .balance-info p { margin: 5px 0; font-size: 16px; color: #1e3a8a; }
         .balance-info .amount { font-size: 28px; font-weight: 700; color: #dc2626; }
+        .single-loan-display {
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background-color: #f8fafc;
+            color: #334155;
+            font-size: 16px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+        }
+
 
         /* Responsive */
         @media (max-width: 768px) {
@@ -240,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <a href="submit_payment.php" style="background:#1e293b;color:#fff;"><i class="fas fa-money-bill-wave"></i> Submit Payment</a>
     <a href="my_payments.php"><i class="fas fa-wallet"></i> My Payments</a>
     <a href="my_history.php"><i class="fas fa-history"></i> My History</a>
-    <a href="index.php?logout=1" class="logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    
 </aside>
 
 <!-- Main -->
@@ -261,20 +274,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="msg success"><?= $msg ?></div>
         <?php endif; ?>
 
-        <?php if (empty($active_loans)): ?>
+        <?php if ($num_active_loans === 0): ?>
             <div class="msg error">No active loans found to pay. Please request a loan first.</div>
         <?php else: ?>
             <!-- UPDATED: Added enctype="multipart/form-data" for file upload -->
-            <form method="post" enctype="multipart/form-data"> 
-                <label for="loan_id">Select Loan to Pay:</label>
-                <select name="loan_id" id="loan_id" required>
-                    <?php foreach ($active_loans as $loan): ?>
-                        <option value="<?= $loan['id'] ?>">
-                            Loan #<?= $loan['id'] ?> (Principal: ₱<?= number_format($loan['amount'], 2) ?>)
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-
+            <form method="post" enctype="multipart/form-data">
+                <label for="loan_id">Loan to Pay:</label>
+                <?php if ($num_active_loans === 1):
+                    $single_loan = $active_loans[0]; ?>
+                    <div class="single-loan-display">
+                        Principal: ₱<?= number_format($single_loan['amount'], 2) ?>
+                    </div>
+                    <input type="hidden" name="loan_id" value="<?= $single_loan['id'] ?>">
+                <?php else: // Multiple loans, use dropdown ?>
+                    <select name="loan_id" id="loan_id" required>
+                        <?php foreach ($active_loans as $loan): ?>
+                            <option value="<?= $loan['id'] ?>">
+                                Principal: ₱<?= number_format($loan['amount'], 2) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                <?php endif; ?>
                 <label for="amount">Payment Amount (₱):</label>
                 <input type="number" step="0.01" min="1" name="amount" id="amount" required placeholder="e.g., 500.00">
 
@@ -291,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <label for="reference_no">Reference Number:</label>
                     <input type="text" name="reference_no" id="reference_no" placeholder="Enter GCash Reference Number">
-                    
+
                     <!-- NEW FIELD: Proof of Payment Upload -->
                     <label for="proof_of_payment">Proof of Payment (Image/PDF):</label>
                     <input type="file" name="proof_of_payment" id="proof_of_payment" accept=".jpg, .jpeg, .png, .pdf">
@@ -312,7 +332,7 @@ function toggleGCashFields() {
     const senderAcctInput = document.getElementById('sender_account_number');
     const referenceNoInput = document.getElementById('reference_no');
     const proofInput = document.getElementById('proof_of_payment');
-    
+
     if (method === 'Gcash') {
         gcashFields.style.display = 'block';
         // Set required for GCash fields for front-end validation

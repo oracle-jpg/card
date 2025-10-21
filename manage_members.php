@@ -316,7 +316,6 @@ $unread_count = $count_stmt->fetchColumn();
         <a href="admin_dashboard.php">🏠 Home</a>
         <a href="manage_members.php">👥 Manage Members</a>
         <a href="manage_loans.php">💼 Manage Loans</a>
-        <a href="record_payment.php">💰 Record Payments</a>
         <a href="generate_reports.php">📊 Reports</a>
         <a href="create_user.php">➕ Create  Personnel</a>
     </aside>

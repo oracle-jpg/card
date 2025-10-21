@@ -78,7 +78,9 @@ foreach ($loans as $loan) {
     $loan_id = $loan['id'];
     $details = $loan; // Start with base loan data
 
-    if (in_array($loan['status'], ['approved', 'ongoing', 'defaulted', 'fully paid'])) {
+    // >>> UPDATED THIS CONDITION <<<
+    // Now includes 'paid' status and uses strtolower() for case-insensitivity
+    if (in_array(strtolower($loan['status']), ['approved', 'ongoing', 'defaulted', 'fully paid', 'paid'])) {
         // Calculate the Total Payable (Principal + Interest)
         $total_payable = calculateTotalPayable($loan['amount'], $loan['interest_rate'], $loan['term_months']);
 
@@ -109,7 +111,9 @@ function getStatusColor($status) {
         case 'approved': return 'color: #10b981; font-weight: 600;'; // Green
         case 'ongoing': return 'color: #2563eb; font-weight: 600;'; // Blue
         case 'rejected': return 'color: #dc2626; font-weight: 600;'; // Red
-        case 'fully paid': return 'color: #059669; font-weight: 600;'; // Darker Green
+        case 'fully paid': 
+        case 'paid': // Added 'paid' for display color as well
+            return 'color: #059669; font-weight: 600;'; // Darker Green
         case 'cancelled': return 'color: #64748b; font-weight: 600;'; // Gray
         case 'defaulted': return 'color: #ef4444; font-weight: 700;'; // Light Red (Urgent)
         default: return 'color: #334155;';
@@ -196,6 +200,39 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
     border-color: #ef4444; /* Red */
     color: #991b1b; /* Dark Red Text */
 }
+/* Dagdag CSS para sa mga action buttons/links */
+.action-btn {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    text-align: center;
+    transition: background 0.3s ease;
+    margin-bottom: 5px; /* Para may space kung sakaling may iba pang button/link sa iisang cell */
+    width: 100%; /* Gawing full width ang button sa loob ng table cell */
+}
+
+.make-payment-btn {
+    background: #22c55e; /* Green color */
+    color: white;
+    border: none;
+}
+
+.make-payment-btn:hover {
+    background: #16a34a; /* Darker green on hover */
+}
+
+.view-details-btn {
+    background: #64748b; /* Gray color */
+    color: white;
+    border: none;
+}
+
+.view-details-btn:hover {
+    background: #475569; /* Darker gray on hover */
+}
 </style>
 <script>
     function confirmCancel(loanId) {
@@ -247,6 +284,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
     <a href="upload_photo.php">📸 Upload Proof</a>
     <a href="my_history.php">📜 My History</a>
     
+    
 </aside>
 
 <!-- Main -->
@@ -267,7 +305,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
         <h2>📝 All Loan Applications</h2>
         <table>
             <tr>
-                <!-- ID column removed for client view -->
+                <!-- REMOVED ID column header -->
                 <th>Amount (₱)</th>
                 <th>Interest Rate (%)</th>
                 <th>Term (Months)</th>
@@ -279,19 +317,22 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
             <?php if ($loan_details): ?>
                 <?php foreach ($loan_details as $d): ?>
                     <tr>
-                        <!-- ID column data removed -->
+                        <!-- REMOVED ID column data -->
                         <td><?= number_format($d['amount'], 2) ?></td>
                         <td><?= htmlspecialchars($d['interest_rate']) ?></td>
                         <td><?= htmlspecialchars($d['term_months']) ?></td>
                         <td style="<?= getStatusColor($d['status']) ?>"><?= htmlspecialchars(ucfirst($d['status'])) ?></td>
                         <td><?= htmlspecialchars(date('M d, Y', strtotime($d['created_at']))) ?></td>
                         <td>
-                            <?php if (in_array($d['status'], ['approved', 'ongoing', 'defaulted', 'fully paid'])): ?>
+                            <?php 
+                            // >>> UPDATED THIS CONDITION <<<
+                            // Now includes 'paid' status and uses strtolower() for case-insensitivity
+                            if (in_array(strtolower($d['status']), ['approved', 'ongoing', 'defaulted', 'fully paid', 'paid'])): ?>
                                 <p style="font-size: 13px; line-height: 1.4;">
-                                    <strong>Total Payable:</strong> ₱<?= number_format($d['total_payable'], 2) ?><br>
-                                    <strong>Total Paid:</strong> ₱<?= number_format($d['total_paid'], 2) ?><br>
-                                    <?php if ($d['status'] !== 'fully paid'): ?>
-                                        <strong style="color: <?= $d['remaining_balance'] > 0 ? '#dc2626' : '#059669' ?>;">Remaining:</strong> ₱<?= number_format($d['remaining_balance'], 2) ?>
+                                    <strong>Total Payable:</strong> ₱<?= number_format($d['total_payable'] ?? 0, 2) ?><br>
+                                    <strong>Total Paid:</strong> ₱<?= number_format($d['total_paid'] ?? 0, 2) ?><br>
+                                    <?php if (strtolower($d['status']) !== 'fully paid' && strtolower($d['status']) !== 'paid'): // Check both 'fully paid' and 'paid' ?>
+                                        <strong style="color: <?= ($d['remaining_balance'] ?? 0) > 0 ? '#dc2626' : '#059669' ?>;">Remaining:</strong> ₱<?= number_format($d['remaining_balance'] ?? 0, 2) ?>
                                     <?php else: ?>
                                         <strong style="color: #059669;">Remaining:</strong> ₱0.00 (Fully Paid)
                                     <?php endif; ?>
@@ -303,6 +344,10 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
                         <td>
                             <?php if ($d['status'] === 'pending'): ?>
                                 <button onclick="confirmCancel(<?= $d['id'] ?>)" class="cancel-btn">Cancel Request</button>
+                            <?php elseif ($d['status'] === 'approved' || $d['status'] === 'ongoing'): ?>
+                                <a href="process_payment.php?loan_id=<?= $d['id'] ?>" class="action-btn make-payment-btn">Make Payment</a>
+                            <?php elseif (in_array(strtolower($d['status']), ['fully paid', 'rejected', 'cancelled', 'defaulted', 'paid'])): // Updated for Action buttons as well ?>
+                                <a href="loan_details.php?id=<?= $d['id'] ?>" class="action-btn view-details-btn">View Details</a>
                             <?php else: ?>
                                 <em>N/A</em>
                             <?php endif; ?>
@@ -311,6 +356,7 @@ th{background:#f1f5f9;font-weight:600;color: #1e293b;}
                 <?php endforeach; ?>
             <?php else: ?>
                 <tr><td colspan="7" class="no-data">You have not requested any loans yet.</td></tr>
+                <!-- Changed colspan from 7 to 6 since 1 column was removed, then back to 7 since you have 7 columns -->
             <?php endif; ?>
         </table>
     </div>

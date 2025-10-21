@@ -13,12 +13,11 @@ $dashboard_link = 'admin_dashboard.php'; // Link pabalik sa Admin Dashboard
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username']);
     $fullname = trim($_POST['full_name']);
-    $email = trim($_POST['email']);
     $role = $_POST['role'];
     $password = $_POST['password'];
 
     // Basic validation
-    if (empty($username) || empty($password) || empty($fullname) || empty($email)) {
+    if (empty($username) || empty($password) || empty($fullname)) {
         $msg = "All fields are required.";
     } elseif (!in_array($role, ['staff', 'manager'])) {
         $msg = "Invalid role. Only Staff/Manager is allowed.";
@@ -32,8 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  $msg = "Error: Username '$username' is already in use.";
             } else {
                 // Insert new user
-                $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role, full_name, email) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$username, $hash, $role, $fullname, $email]);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role, full_name) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$username, $hash, $role, $fullname]);
                 $msg = "Success: User (Role: " . ucfirst($role) . ") was successfully created.";
             }
         } catch (PDOException $e) {
@@ -49,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Staff/Manager</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         /* Base Styles */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -181,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         button[type="submit"] {
             width: 100%;
-            background: #10b981; /* Green submit button */
+            background: #1e293b; /* Green submit button */
             color: white;
             border: none;
             padding: 12px;
@@ -211,6 +211,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #fee2e2;
             color: #991b1b;
             border: 1px solid #fca5a5;
+        }
+
+        /* Password Toggle Specific Styles */
+        .password-container {
+            position: relative;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #64748b;
+        }
+        .password-toggle:hover {
+            color: #1e293b;
         }
 
         /* Responsive adjustments for mobile view */
@@ -266,7 +282,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <a href="<?= htmlspecialchars($dashboard_link) ?>">🏠 Home</a>
             <a href="manage_members.php">👥 Manage Members</a>
         <a href="manage_loans.php">💼 Manage Loans</a>
-        <a href="record_payment.php">💰 Record Payments</a>
         <a href="generate_reports.php">📊 Reports</a>
             <a href="create_user.php" class="active">➕ Create Personnel</a>
         </nav>  
@@ -276,7 +291,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="main">
         <header>
             <h1>Operations Manager Panel</h1>
-            <!-- Tanging Buong Pangalan na lang ang ipapakita (inalis ang role sa parenthesis) -->
             <div class="profile">👤 <?= htmlspecialchars($user_full_name) ?></div>
         </header>
 
@@ -297,9 +311,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="full_name">Full name</label>
                 <input type="text" id="full_name" name="full_name" required>
                 
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
-                
                 <label for="role">Role</label>
                 <select id="role" name="role" required>
                     <option value="staff">Staff</option>
@@ -307,7 +318,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </select>
                 
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <div class="password-container">
+                    <input type="password" id="password" name="password" required>
+                    <span class="password-toggle" onclick="togglePasswordVisibility()">
+                        <i class="fas fa-eye" id="toggleIcon"></i>
+                    </span>
+                </div>
                 
                 <button type="submit">Create</button>
             </form>
@@ -315,5 +331,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
     </main>
 
+    <script>
+        function togglePasswordVisibility() {
+            const passwordField = document.getElementById('password');
+            const toggleIcon = document.getElementById('toggleIcon');
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordField.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+    </script>
 </body>
 </html>

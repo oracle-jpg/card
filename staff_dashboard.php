@@ -1,55 +1,85 @@
 <?php
 require_once 'auth.php';
 // Tinitiyak na ang user ay staff o may access
-require_role(['staff']);
+require_role(['staff', 'admin']); 
 $user = current_user();
 
 // Safe way to get the full_name, using null coalescing operator (??)
-// Tinitiyak na hindi mag-e-error kahit hindi ma-fetch ang user object
 $user_full_name = $user['full_name'] ?? 'Staff User';
 $user_role = $user['role'] ?? 'staff';
+$user_id = $user['id'] ?? null; // Get user ID for specific notifications
 
 require_once 'db.php'; // Ensure db.php is loaded for PDO object
 
-// Fetch unverified payments count for notification badge
+// Fetch unverified payments count for sidebar/card badge
 try {
-    // Only count payments that are pending verification
     $unverified_payments_count = $pdo->query("SELECT COUNT(*) FROM payments WHERE status = 'pending'")->fetchColumn();
 } catch (PDOException $e) {
-    // If the payments table is missing columns, set count to 0 and log error silently
     $unverified_payments_count = 0;
-    // Log $e->getMessage() for backend debugging if needed
 }
 
 // Fetch recent staff activity (last 5 logs)
 try {
-    // Fetches the 5 most recent activity logs from the audit_logs table, 
-    // joining with users to get the full name of the user who performed the action.
     $recent_activity = $pdo->query("
-        SELECT 
-            a.created_at, 
-            a.action, 
-            u.full_name 
-        FROM audit_logs a 
-        LEFT JOIN users u ON a.user_id = u.id 
-        ORDER BY a.created_at DESC 
+        SELECT
+            a.created_at,
+            a.action,
+            u.full_name
+        FROM audit_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        ORDER BY a.created_at DESC
         LIMIT 5
     ")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // If the audit_logs table or columns are missing, return empty array and log error silently
     $recent_activity = [];
-    // Log $e->getMessage() for backend debugging if needed
 }
 
+// 🔒 Secure Notification Filtering for Staff
+$notifications = [];
+$unread_count = 0;
 
-// Check for required notification bell dependency: notification_bell.php
-$notification_bell_html = '';
-if (file_exists('notification_bell.php')) {
-    ob_start(); // Start output buffering
-    include 'notification_bell.php'; // Include the content
-    $notification_bell_html = ob_get_clean(); // Capture the output
+if ($user_id) {
+    try {
+        // Fetch only staff-specific or user-specific notifications
+        $notif_stmt = $pdo->prepare("
+            SELECT * FROM notifications 
+            WHERE 
+                (
+                    target_user_id = :uid 
+                    OR target_role = :role
+                    OR (target_role = 'all' AND :role IN ('admin', 'manager', 'staff'))
+                )
+            ORDER BY created_at DESC
+            LIMIT 5
+        ");
+        $notif_stmt->execute([
+            ':uid' => $user_id,
+            ':role' => $user_role
+        ]);
+        $notifications = $notif_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Count unread notifications securely
+        $unread_count_stmt = $pdo->prepare("
+            SELECT COUNT(*) FROM notifications 
+            WHERE 
+                (
+                    target_user_id = :uid 
+                    OR target_role = :role
+                    OR (target_role = 'all' AND :role IN ('admin', 'manager', 'staff'))
+                )
+                AND is_read = 0
+        ");
+        $unread_count_stmt->execute([
+            ':uid' => $user_id,
+            ':role' => $user_role
+        ]);
+        $unread_count = $unread_count_stmt->fetchColumn();
+
+    } catch (PDOException $e) {
+        $notifications = [];
+        $unread_count = 0;
+    }
 }
-
 ?>
 <!doctype html>
 <html lang="en">
@@ -78,18 +108,17 @@ if (file_exists('notification_bell.php')) {
         }
         .logo-box {
             display: flex;
-            justify-content: left; /* I-center ang image */
+            justify-content: left;
             align-items: center;
             padding: 15px 0;
             margin-bottom: 30px;
             border-radius: 8px;
         }
         .logo-box img {
-            height: 60px; /* Fixed height for the logo */
+            height: 60px;
             width: auto;
             border-radius: 6px;
         }
-        .sidebar h2 { font-size: 20px; margin-bottom: 30px; font-weight: 700; }
         .sidebar a {
             color: #e2e8f0;
             text-decoration: none;
@@ -99,7 +128,7 @@ if (file_exists('notification_bell.php')) {
             display: block;
             transition: 0.3s;
             font-weight: 500;
-            position: relative; /* For badge */
+            position: relative;
         }
         .sidebar a:hover, .sidebar a.active { background: #1e293b; color: #fff; }
 
@@ -109,7 +138,7 @@ if (file_exists('notification_bell.php')) {
             top: 50%;
             right: 10px;
             transform: translateY(-50%);
-            background: #ef4444; /* Red for alert */
+            background: #ef4444;
             color: white;
             padding: 2px 7px;
             border-radius: 9999px;
@@ -118,24 +147,12 @@ if (file_exists('notification_bell.php')) {
             line-height: 1;
         }
 
-        .logout {
-            margin-top: auto;
-            background: #dc2626;
-            color: #fff;
-            text-align: center;
-            padding: 12px;
-            border-radius: 8px;
-            text-decoration: none;
-            transition: 0.3s;
-            font-weight: 600;
-        }
-        .logout:hover { background: #b91c1c; }
-
         /* Main */
         .main {
             flex: 1;
             padding: 30px 40px;
         }
+        
         /* HEADER AREA */
         header {
             display: flex;
@@ -152,51 +169,175 @@ if (file_exists('notification_bell.php')) {
             color: #1e3a8a;
         }
 
-        /* Align bell and profile side-by-side (using .header-actions defined in style.css) */
-        /* NOTE: The existing .header-right is removed as it conflicts with new styling */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+        }
+        
+        /* ======================================================= */
+        /* START: Notification Bell & Profile Styling (FIXED WITH FLEXBOX) */
+        /* ======================================================= */
 
-        /* Notification Bell Styling (assuming notification_bell.php content handles this) */
+        /* --- Notification Bell Container --- */
         .notif-bell {
+            position: relative;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 5px; 
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        .notif-bell:hover {
+            background: #f1f5f9;
+        }
+        .notif-bell i {
+            color: #1e3a8a;
+            font-size: 20px;
+        }
+        /* Notification Count Badge */
+        .notif-bell .count { 
+            background: #ef4444; color: #fff; font-size: 12px;
+            border-radius: 50%; padding: 2px 6px; position: absolute; top: -6px; right: -8px;
+            line-height: 1; min-width: 18px; text-align: center;
+            box-shadow: 0 0 0 2px #f8fafc;
+            font-weight: 700;
+        }
+
+        /* FIXED: Notification Dropdown Structure (Flexbox) */
+        #notifDropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 40px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            width: 300px;
+            z-index: 1000;
+            
+            /* FLEXBOX PROPERTIES */
+            display: flex; /* Default to flex, hidden via JS */
+            flex-direction: column;
+            max-height: 400px;
+            overflow: hidden;
+            
+            /* Hidden by default, JS will set to 'flex' to show */
+            display: none; 
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        #notifDropdown .notif-header {
+            background: #f3f4f6;
+            padding: 10px 15px;
+            border-bottom: 1px solid #e5e7eb;
+            font-weight: 600;
+            color: #374151;
+            flex-shrink: 0; /* Important: prevents header from being compressed */
+        }
+
+        /* Scrollable Container */
+        #notifDropdown .notif-scroll { 
+            flex-grow: 1; /* Important: takes up remaining space */
+            overflow-y: auto; /* Scroll only this section */
+        }
+
+        #notifDropdown .notif-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            text-decoration: none;
+            color: #1e293b;
+            display: block;
+            transition: background 0.2s;
+        }
+        #notifDropdown .notif-item:hover {
+             background: #f1f5f9;
+        }
+        #notifDropdown .notif-item:last-child {
+            border-bottom: none;
+        }
+
+        #notifDropdown .notif-item strong {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 15px;
+        }
+
+        #notifDropdown .notif-item small {
+            color: #6b7280;
+            display: block;
+        }
+        #notifDropdown .notif-item em {
+            display: block;
+            padding: 15px;
+            text-align: center;
+            color: #6b7280;
+        }
+
+
+        /* --- Profile Dropdown --- */
+        .profile-container {
             position: relative;
             cursor: pointer;
             display: flex;
             align-items: center;
-            justify-content: center;
-        }
-
-        .notif-bell svg {
-            width: 24px;
-            height: 24px;
-            color: #1e3a8a;
-            transition: 0.3s;
-        }
-
-        .notif-bell svg:hover {
-            color: #2563eb;
-        }
-
-        /* Notification Count Bubble */
-        .notif-bell .count {
-            position: absolute;
-            top: -6px;
-            right: -6px;
-            background: #ef4444;
-            color: white;
-            font-size: 12px;
-            padding: 2px 5px;
-            border-radius: 10px;
-            line-height: 1;
-        }
-
-        /* Profile Badge - This will now be handled by the new .profile-info/container in style.css */
-        .profile {
+            gap: 8px;
             background: #2563eb;
             color: #fff;
             padding: 8px 14px;
             border-radius: 8px;
             font-weight: 600;
             font-size: 14px;
+            transition: background 0.2s;
         }
+        .profile-container:hover {
+            background: #1d4ed8;
+        }
+        .profile-container i {
+            color: #fff;
+            font-size: 18px;
+        }
+        .dropdown-menu { 
+            position: absolute;
+            top: 40px;
+            right: 0;
+            background-color: #fff;
+            min-width: 180px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            z-index: 1000;
+            padding: 10px 0;
+            border: 1px solid #e2e8f0;
+            display: none;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .dropdown-menu a {
+            color: #334155;
+            padding: 10px 15px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        .dropdown-menu a:hover {
+            background-color: #f8fafc;
+        }
+        .dropdown-menu a i {
+            color: #64748b;
+        }
+
+        /* Animation for dropdowns */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ======================================================= */
+        /* END: Notification Bell & Profile Styling */
+        /* ======================================================= */
 
 
         /* Dashboard Cards */
@@ -232,18 +373,18 @@ if (file_exists('notification_bell.php')) {
             transition: background 0.3s, transform 0.1s;
         }
         .card button:hover { background: #1d4ed8; transform: translateY(-1px); }
-        
-        /* NEW: Additional Styling for Data Tables (Recent Activity) */
+
+        /* Recent Activity Table Styling */
         .data-section {
             background: #fff;
             border-radius: 12px;
             padding: 30px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             margin-top: 30px;
-            border-top: 5px solid #059669; /* Green Accent */
+            border-top: 5px solid #059669;
         }
         .data-section h3 {
-            color: #059669; /* Green for activity heading */
+            color: #059669;
             font-size: 20px;
             margin-bottom: 20px;
             font-weight: 700;
@@ -274,9 +415,14 @@ if (file_exists('notification_bell.php')) {
             .sidebar { width: 100%; min-height: unset; padding: 15px 20px; }
             .main { padding: 20px; }
             header { flex-direction: column; align-items: flex-start; gap: 10px; }
-            /* .header-actions (formerly .header-right) can stay inline or be moved */
-            .header-actions { align-self: flex-end; } 
+            .header-actions { align-self: flex-end; margin-top: 10px; width: 100%; justify-content: flex-end; }
             .cards { grid-template-columns: 1fr; }
+            #notifDropdown, .dropdown-menu {
+                left: unset;
+                right: 0;
+                width: 95%; 
+                max-width: 350px;
+            }
         }
     </style>
 </head>
@@ -296,7 +442,10 @@ if (file_exists('notification_bell.php')) {
         <a href="record_payment.php">📝 Record Payments</a>
         <a href="members.php">👥 Manage Members</a>
         <a href="upload_member_photo.php">📸 View Proofs</a>
-    </aside>
+        <a href="staff_ci_tasks.php">📋 My CI Tasks</a>
+
+ 
+        </aside>
 
     <main class="main">
         <header>
@@ -305,19 +454,39 @@ if (file_exists('notification_bell.php')) {
             </div>
 
             <div class="header-actions">
-                
-                <div class="notif-container" onclick="toggleDropdown()">
-                    <?= $notification_bell_html ?>
-                </div>
 
-                <div class="profile-container" onclick="toggleProfileDropdown()">
-                    <div class="profile-info">
-                        <span><?= htmlspecialchars($user_full_name) ?></span>
-                        <i class="fas fa-user-circle fa-lg"></i>
+                <div class="notif-bell" onclick="toggleNotif()">
+                    <i class="fas fa-bell"></i>
+                    <?php if ($unread_count > 0): ?>
+                        <span class="count"><?= $unread_count ?></span>
+                    <?php endif; ?>
+                    
+                    <div id="notifDropdown">
+                        <div class="notif-header">
+                             Notifications
+                        </div>
+
+                        <div class="notif-scroll">
+                            <?php if (!empty($notifications)): ?>
+                                <?php foreach ($notifications as $notif): ?>
+                                    <a href="view_notification.php?id=<?= $notif['id'] ?>" class="notif-item">
+                                        <strong><?= htmlspecialchars($notif['title'] ?? 'Notification') ?></strong>
+                                        <small><?= htmlspecialchars(substr($notif['message'] ?? '', 0, 80) . (strlen($notif['message'] ?? '') > 80 ? '...' : '')) ?></small>
+                                        <small><?= date('M d, Y h:i A', strtotime($notif['created_at'])) ?></small>
+                                    </a>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div class="notif-item"><em>No notifications found.</em></div>
+                            <?php endif; ?>
+                        </div>
                     </div>
+                </div>
+                
+                <div class="profile-container" onclick="toggleProfileDropdown()">
+                    <span><?= htmlspecialchars(explode(' ', $user_full_name)[0]) ?></span> <i class="fas fa-user-circle"></i>
 
                     <div id="profileDropdown" class="dropdown-menu">
-                        <a href="change_password_page.php"> 
+                        <a href="change_password_page.php">
                             <i class="fas fa-key"></i> Change Password
                         </a>
                         <a href="logout.php">
@@ -325,8 +494,10 @@ if (file_exists('notification_bell.php')) {
                         </a>
                     </div>
                 </div>
+                
             </div>
         </header>
+        
         <div class="cards">
             <div class="card">
                 <h3>💰 Verify Client Payments</h3>
@@ -381,49 +552,42 @@ if (file_exists('notification_bell.php')) {
     </main>
 
 <script>
-    // Toggles the Notification Dropdown (for existing notification bell logic)
-    function toggleDropdown() {
-        const dd = document.getElementById('notifDropdown');
-        const profileDd = document.getElementById('profileDropdown');
-
+    // Toggles the Notification Dropdown
+    function toggleNotif() {
+        const notif = document.getElementById("notifDropdown");
+        const profile = document.getElementById("profileDropdown");
+        
         // Close profile dropdown if open
-        if (profileDd && profileDd.style.display === 'block') {
-             profileDd.style.display = 'none';
-        }
-
-        // Toggles the visibility of the notification dropdown (assuming its ID is 'notifDropdown' in notification_bell.php)
-        if (dd) {
-            dd.style.display = (dd.style.display === 'block') ? 'none' : 'block';
-        }
+        if (profile.style.display === "block") profile.style.display = "none";
+        
+        // Use 'flex' when showing the notification dropdown (matches CSS)
+        notif.style.display = notif.style.display === "flex" ? "none" : "flex";
     }
 
     // Toggles the Profile Dropdown
     function toggleProfileDropdown() {
-        const dd = document.getElementById('profileDropdown');
-        const notifDd = document.getElementById('notifDropdown');
-
-        // Close notification dropdown if open
-        if (notifDd && notifDd.style.display === 'block') {
-            notifDd.style.display = 'none';
-        }
-
-        dd.style.display = (dd.style.display === 'block') ? 'none' : 'block';
+        const profile = document.getElementById("profileDropdown");
+        const notif = document.getElementById("notifDropdown");
+        
+        // Close notification dropdown if open (check for 'flex' display)
+        if (notif.style.display === "flex") notif.style.display = "none"; 
+        
+        // Toggle profile dropdown using 'block'
+        profile.style.display = profile.style.display === "block" ? "none" : "block";
     }
 
-    // Close dropdowns when clicking outside
-    window.onclick = function(e) {
-        // Check if the click target is NOT inside the notification container
-        if (!e.target.closest('.notif-container')) {
+    // Click outside to close both dropdowns
+    document.addEventListener("click", function(e) {
+        // Check if the click is outside both the bell container and profile container
+        if (!e.target.closest(".notif-bell") && !e.target.closest(".profile-container")) {
             const notifDd = document.getElementById('notifDropdown');
-            if (notifDd) notifDd.style.display = 'none';
-        }
-        
-        // Check if the click target is NOT inside the profile-container (dropdown trigger)
-        if (!e.target.closest('.profile-container')) {
             const profileDd = document.getElementById('profileDropdown');
+            
+            // Close both dropdowns
+            if (notifDd) notifDd.style.display = 'none';
             if (profileDd) profileDd.style.display = 'none';
         }
-    }
+    });
 </script>
 </body>
 </html>

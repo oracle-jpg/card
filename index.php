@@ -2,7 +2,6 @@
 require_once 'db.php';
 session_start();
 
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username']);
     $pass = $_POST['password'];
@@ -11,20 +10,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
-    if (!$user) {
-        $error = "Username or Password not found. Please try again.";
-    } elseif (password_verify($pass, $user['password_hash'])) {
-        $_SESSION['user_id'] = $user['id'];
-        // Ensure 'index.php' is your actual homepage. If not, change 'index.php'
-        if ($user['role'] === 'client') header('Location: client_dashboard.php');
-        elseif ($user['role'] === 'staff') header('Location: staff_dashboard.php');
-        elseif ($user['role'] === 'manager') header('Location: manager_dashboard.php');
-        else header('Location: admin_dashboard.php');
-        exit;
+    if ($user) {
+        if (password_verify($pass, $user['password_hash'])) {
+            // Check if client email is verified
+            $checkVerify = $pdo->prepare("SELECT is_email_verified, role FROM users WHERE id = ?");
+            $checkVerify->execute([$user['id']]);
+            $status = $checkVerify->fetch();
+
+            if ($status['role'] === 'client' && !$status['is_email_verified']) {
+                $error = "Please verify your email before logging in. Check your inbox.";
+            } else {
+                $_SESSION['user_id'] = $user['id'];
+
+                if ($user['role'] === 'client') {
+                    header('Location: client_dashboard.php');
+                } elseif ($user['role'] === 'staff') {
+                    header('Location: staff_dashboard.php');
+                } elseif ($user['role'] === 'manager') {
+                    header('Location: manager_dashboard.php');
+                } else {
+                    header('Location: admin_dashboard.php');
+                }
+                exit;
+            }
+        } else {
+            $error = "Invalid password.";
+        }
     } else {
-        $error = "Invalid password. Please try again.";
+        $error = "User not found.";
     }
-}
+} // ✅ <-- missing bracket fixed here
 ?>
 <!doctype html>
 <html>
@@ -33,17 +48,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - CARD RBI Microfinance</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
-  <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <style>
     body {
       margin: 0;
       padding: 0;
-      /* Using your local card.jpg image. Make sure it's in the same directory or provide the correct path. */
-      /* Added a subtle dark overlay (linear-gradient) for better text contrast if your image is very bright. */
-      /* Increased background size for better fill */
       background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('card.jpg') no-repeat center center fixed;
-      background-size: cover; /* Ensure it covers the whole screen */
+      background-size: cover;
       font-family: 'Segoe UI', Arial, sans-serif;
       color: #333;
     }
@@ -57,18 +68,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     .login-box {
       background: rgba(255,255,255,0.98);
-      padding: 25px 40px; /* Reduced vertical padding (height), increased horizontal padding (width) */
+      padding: 25px 40px;
       border-radius: 12px;
-      width: 400px; /* Increased width */
-      max-width: 90%; /* Ensure responsiveness on smaller screens */
+      width: 400px;
+      max-width: 90%;
       box-shadow: 0px 8px 25px rgba(0,0,0,0.3);
       text-align: center;
       animation: fadeIn 0.8s ease-out forwards;
     }
 
     @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .login-box img {
@@ -93,8 +104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .input-group {
-        position: relative;
-        margin-bottom: 15px;
+      position: relative;
+      margin-bottom: 15px;
     }
 
     .login-box input {
@@ -104,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       border-radius: 8px;
       transition: border-color 0.3s ease, box-shadow 0.3s ease;
       font-size: 16px;
-      padding-right: 40px; /* Make space for the eye icon */
+      padding-right: 40px;
       box-sizing: border-box;
     }
 
@@ -115,20 +126,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .toggle-password {
-        position: absolute;
-        right: 15px;
-        top: 50%;
-        transform: translateY(-50%);
-        cursor: pointer;
-        color: #888;
-        font-size: 18px;
-        transition: color 0.2s ease;
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: #888;
+      font-size: 18px;
+      transition: color 0.2s ease;
     }
 
     .toggle-password:hover {
-        color: #0033A0;
+      color: #0033A0;
     }
-
 
     .login-box button {
       margin-top: 25px;
@@ -143,6 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       font-size: 17px;
       transition: background 0.3s ease, color 0.3s ease, transform 0.2s ease;
     }
+
     .login-box button:hover {
       background: #FFD700;
       color: #0033A0;
@@ -173,111 +184,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .error-message {
-        background-color: #ffebeb;
-        color: #d8000c;
-        border: 1px solid #d8000c;
-        padding: 10px;
-        border-radius: 6px;
-        margin-bottom: 20px;
-        text-align: left;
-        font-size: 14px;
+      background-color: #ffebeb;
+      color: #d8000c;
+      border: 1px solid #d8000c;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      text-align: left;
+      font-size: 14px;
     }
 
-/* New styles for the specific layout requested */
     .links-group {
-        display: flex;
-        justify-content: space-between; /* Pushes the left block and right link apart */
-        align-items: flex-start; /* Aligns items to the top if they have different heights */
-        margin-top: 18px;
-        padding: 0 5px;
-        flex-wrap: wrap; /* Allows items to wrap if screen is too small, though unlikely for this content */
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: 18px;
+      padding: 0 5px;
+      flex-wrap: wrap;
     }
 
-    .links-group > div { /* This targets the left block containing "Don't have an account?" and "Register here" */
-        display: flex;
-        flex-direction: column; /* Stacks its children vertically */
-        align-items: flex-start; /* Aligns text/link to the left */
-        gap: 2px; /* Small gap between the <p> and <a> */
-        font-size: 14px;
-        flex-basis: auto; /* Allow content to dictate its width */
+    .links-group > div {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      font-size: 14px;
     }
 
     .links-group p {
-        margin: 0; /* Remove default paragraph margins */
-        color: #666;
-        font-size: 14px; /* Ensure consistency */
+      margin: 0;
+      color: #666;
+      font-size: 14px;
     }
 
     .links-group a {
-        color: #0033A0;
-        font-weight: bold;
-        text-decoration: none;
-        transition: color 0.3s ease;
-        font-size: 14px; /* Ensure consistency */
+      color: #0033A0;
+      font-weight: bold;
+      text-decoration: none;
+      transition: color 0.3s ease;
+      font-size: 14px;
     }
+
     .links-group a:hover {
-        color: #FFD700;
-        text-decoration: underline;
+      color: #FFD700;
+      text-decoration: underline;
     }
 
     .links-group .forgot-password-link {
-        margin-top: auto; /* Pushes this link to the bottom if the left group is taller */
-        /* If you want it aligned with "Register here" for example, adjust this */
-        /* For your specific request, it aligns with "Register here" by default due to flex-start + column on the left */
-        align-self: flex-end; /* Align the 'Forgot password?' link to the bottom of its line */
+      align-self: flex-end;
     }
   </style>
 </head>
 <body>
-
   <div class="login-container">
     <div class="login-box">
-      <!-- **IMPORTANT: Update this src attribute with the path to your desired logo image** -->
-      <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="CARD RBI Logo - Ito ang bangko natin.">
+      <img src="https://www.cardmri.com/rbi/wp-content/uploads/2020/01/CMRBI-1.png" alt="CARD RBI Logo">
       <h2>Log In to Your Account</h2>
-      <?php if(!empty($error)) echo "<p class='error-message'>$error</p>"; ?>
+      <?php if (!empty($error)) echo "<p class='error-message'>$error</p>"; ?>
       <form method="post">
         <label for="username">Username</label>
         <div class="input-group">
-            <input type="text" id="username" name="username" placeholder="e.g., juan_delacruz" required>
+          <input type="text" id="username" name="username" placeholder="e.g., juan_delacruz" required>
         </div>
 
         <label for="password">Password</label>
         <div class="input-group">
-            <input type="password" id="password" name="password" placeholder="••••••••" required>
-            <i class="fas fa-eye toggle-password" id="togglePassword"></i>
+          <input type="password" id="password" name="password" placeholder="••••••••" required>
+          <i class="fas fa-eye toggle-password" id="togglePassword"></i>
         </div>
 
-        <button type="submit">Secure Login</button>
+        <button type="submit">Login</button>
       </form>
 
       <div class="links-group">
-          <!-- This div groups "Don't have an account?" and the "Register here" link -->
-          <div>
-              <p>Don’t have an account?</p>
-              <!-- Moved "Register here" outside the <p> for better styling control -->
-              <a href="register.php">Register here</a>
-          </div>
-          <!-- This is the "Forgot password?" link on the right -->
-          <a href="forgot_password.php" class="forgot-password-link">Forgot password?</a>
+        <div>
+          <p>Don’t have an account?</p>
+          <a href="register.php">Register here</a>
+        </div>
+        <a href="forgot_password.php" class="forgot-password-link">Forgot password?</a>
       </div>
 
-      <a href="home_page.php" class="home-button">Back to Home</a> <!-- Ensure homepage.php is correct -->
+      <a href="home_page.php" class="home-button">Back to Home</a>
     </div>
   </div>
 
   <script>
     const togglePassword = document.getElementById('togglePassword');
     const passwordInput = document.getElementById('password');
-
-    togglePassword.addEventListener('click', function (e) {
-        // toggle the type attribute
-        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        passwordInput.setAttribute('type', type);
-
-        // toggle the eye / eye-slash icon
-        this.classList.toggle('fa-eye');
-        this.classList.toggle('fa-eye-slash');
+    togglePassword.addEventListener('click', function () {
+      const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      passwordInput.setAttribute('type', type);
+      this.classList.toggle('fa-eye');
+      this.classList.toggle('fa-eye-slash');
     });
   </script>
 </body>

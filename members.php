@@ -185,7 +185,7 @@ th{background:#f1f5f9;}
             <input type="text" name="phone" required placeholder="09XXXXXXXXX">
             <label>Address</label>
             <input type="text" name="address" placeholder="Enter address">
-            <label>Age (optional)</label>
+            <label>Age</label>
             <input type="number" name="age" min="18" max="120" placeholder="Enter age">
             <label>Initial Loan Amount (₱)</label>
             <input type="number" step="0.01" name="loan_amount" placeholder="Enter amount">

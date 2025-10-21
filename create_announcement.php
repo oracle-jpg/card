@@ -4,7 +4,8 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 
 require_once 'auth.php';
-require_role(['admin']); 
+// FIX: Allow both 'admin' and 'manager' to access this page
+require_role(['admin', 'manager']); 
 require_once 'db.php';
 
 $creator_user_id = $_SESSION['user_id'] ?? null;
@@ -48,7 +49,8 @@ if ($user_role === 'admin') {
         ['href' => 'staff_performance.php', 'text' => '👥 Staff'],
         ['href' => 'loan_overview.php', 'text' => '💼 Loans'],
         ['href' => 'manager_loan_approval.php', 'text' => '✅ Approvals'],
-        // TINANGGAL: Inalis ang link na 'create_announcement.php' sa Manager menu
+        // ADDED: Ibalik ang 'create_announcement.php' sa Manager menu
+        ['href' => 'create_announcement.php', 'text' => '📣 Notification', 'active' => true], 
         ['href' => 'logout.php', 'text' => '🚪 Logout'], 
     ];
 }
@@ -185,7 +187,7 @@ if ($user_role === 'admin') {
                 </select>
                 
                 <div class="button-group">
-                    <a href="<?= $home_link ?>" class="back-btn">⬅️ Back to Home</a>
+                    <a href="admin_dashboard.php" class="back-btn">⬅️ Back to Home</a>
                     <button type="submit">Post Notification</button>
                 </div>
             </form>

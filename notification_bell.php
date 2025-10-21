@@ -10,103 +10,71 @@ $user_id = $_SESSION['user_id'] ?? null;
 if (!$user_id) exit;
 
 // Get user role
-// Gamit ang PDO statement para maiwasan ang SQL Injection
 $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?"); 
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
 $role = $user['role'] ?? '';
 
-// FIXED: Admin lang ang papayagan
+// Check if user is admin to allow creating announcements
 $can_create_announcement = ($role === 'admin'); 
 
-// Fetch unread + read notifications visible for this role/user
+// Fetch notifications
 $stmt = $pdo->prepare("
     SELECT id, title, message, is_read, created_at
     FROM notifications
     WHERE (target_role = 'all' 
-            OR target_role = ? 
-            OR target_user_id = ?)
+           OR target_role = ? 
+           OR target_user_id = ?)
     ORDER BY created_at DESC
     LIMIT 5
 ");
 $stmt->execute([$role, $user_id]);
 $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Filter the notifications array to count unread ones
+$unread_count = 0;
+foreach ($notifications as $n) {
+    if (!$n['is_read']) {
+        $unread_count++;
+    }
+}
 ?>
 
 <div class="notif-dropdown">
     <button class="notif-btn" onclick="toggleNotif()">
-        🔔
-        <?php 
-          // Filter the notifications array to count unread ones
-          $unread = array_filter($notifications, fn($n) => !$n['is_read']);
-          if (count($unread) > 0): ?>
-            <span class="notif-count"><?= count($unread) ?></span>
+        <i class="fas fa-bell"></i>
+        <?php if ($unread_count > 0): ?>
+            <span class="notif-count"><?= $unread_count ?></span>
         <?php endif; ?>
     </button>
 
     <div class="notif-list" id="notifList">
-        <?php if ($notifications): ?>
-            <?php foreach ($notifications as $n): ?>
-                <div class="notif-item <?= $n['is_read'] ? '' : 'unread' ?>" 
-                      onclick="window.location.href='view_notification.php?id=<?= $n['id'] ?>'">
-                    <strong><?= htmlspecialchars($n['title']) ?></strong>
-                    <p><?= htmlspecialchars(substr($n['message'], 0, 50)) ?>...</p>
-                    <small><?= date('M d, Y h:i A', strtotime($n['created_at'])) ?></small>
-                </div>
+        <?php if (!empty($notifications)): ?>
+            <?php foreach ($notifications as $notification): 
+                // Inalis ang anumang scrollable tag. Gumamit lang ng <p>
+                $display_message = htmlspecialchars(substr($notification['message'], 0, 100));
+                if (strlen($notification['message']) > 100) {
+                    $display_message .= '...';
+                }
+                
+                $notif_link = "notification_details.php?id=" . $notification['id'];
+            ?>
+                <a href="<?= $notif_link ?>" class="notif-item <?= $notification['is_read'] ? '' : 'unread' ?>">
+                    <strong><?= htmlspecialchars($notification['title']) ?></strong>
+                    <p><?= $display_message ?></p>
+                    <small>
+                        <?= htmlspecialchars(date('M d, Y h:i A', strtotime($notification['created_at']))) ?>
+                    </small>
+                </a>
             <?php endforeach; ?>
         <?php else: ?>
-            <p class="empty">No notifications</p>
+            <p class="empty">No new notifications.</p>
         <?php endif; ?>
-        
+
         <?php if ($can_create_announcement): ?>
             <a href="create_announcement.php" class="create-announcement-link">
-                + Create Announcement
+                <i class="fas fa-bullhorn"></i> Create Announcement
             </a>
         <?php endif; ?>
-        
     </div>
 </div>
-
-<style>
-/* Existing styles... */
-.notif-dropdown { position: relative; display: inline-block; margin-left: 300px; }
-.notif-btn { background: none; border: none; cursor: pointer; font-size: 20px; position: relative; }
-.notif-count {
-    background: #ef4444; color: #fff; font-size: 12px;
-    border-radius: 50%; padding: 2px 6px; position: absolute; top: -6px; right: -8px;
-}
-.notif-list {
-    display: none; position: absolute; right: 0; top: 30px;
-    background: #fff; border: 1px solid #e5e7eb; width: 300px;
-    border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 100;
-}
-.notif-item { padding: 10px; border-bottom: 1px solid #e5e7eb; cursor: pointer; }
-.notif-item.unread { background: #e0f2fe; }
-.notif-item:hover { background: #f1f5f9; }
-.notif-list p.empty { padding: 10px; text-align: center; color: #6b7280; }
-
-/* Bagong Style para sa Announcement Link */
-.create-announcement-link {
-    display: block; /* Gawing block para sakupin ang buong lapad */
-    text-align: center;
-    padding: 10px;
-    border-top: 1px solid #e5e7eb;
-    background: #f0fdf4; /* Light green background */
-    color: #10b981; /* Green text color */
-    text-decoration: none; /* Tanggalin ang underline */
-    font-weight: bold;
-    border-bottom-left-radius: 8px;
-    border-bottom-right-radius: 8px;
-}
-.create-announcement-link:hover {
-    background: #dcfce7; /* Mas light na green on hover */
-    color: #059669;
-}
-</style>
-
-<script>
-function toggleNotif(){
-    const list = document.getElementById('notifList');
-    list.style.display = list.style.display === 'block' ? 'none' : 'block';
-}
-</script>
